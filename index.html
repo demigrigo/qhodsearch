@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="shortcut icon" href="#">
+    <meta charset="UTF-8">
+    <title>TEI Entities Browser</title>
+    <link href="https://unpkg.com/tabulator-tables/dist/css/tabulator.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables/dist/js/tabulator.min.js"></script>
+    <script type="text/javascript" src="https://oss.sheetjs.com/sheetjs/xlsx.full.min.js"></script>
+    <script type="text/javascript">
+        Tabulator.extendModule("format", "formatters", {
+            bold:function(cell, formatterParams){
+                return "<strong>" + cell.getValue() + "</strong>"; //make the contents of the cell bold
+            },
+            uppercase:function(cell, formatterParams){
+                return cell.getValue().toUpperCase(); //make the contents of the cell uppercase
+            }
+        });
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        #loading {
+            text-align: center;
+            margin-top: 50px;
+            font-size: 1.2em;
+            color: #666;
+        }
+        #errorContainer {
+            color: red;
+            text-align: center;
+            margin: 20px;
+        }
+        #jsonContainer {
+            white-space: pre-wrap;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 20px;
+            max-height: 200px;
+            overflow: auto;
+        }
+        #filters {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        #searchBar {
+            width: 300px;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+        }
+        #entityTable {
+            width: 100%;
+            display: none;
+            max-height: auto;
+        }
+        label {
+            font-weight: bold;
+        }
+        select {
+            padding: 5px;
+            font-size: 16px;
+        }
+
+        .tabulator .tabulator-header .tabulator-col {
+        background: #b3e1d9
+        }
+
+    </style>
+</head>
+<body>
+    <div id="loading">Loading entities, please wait...</div>
+    <div id="errorContainer"></div>
+    <div id="jsonContainer"></div>
+
+    <!-- Filter section -->
+    <div id="filters">
+        <div>
+            <label for="languageFilter">Language:</label>
+            <select id="languageFilter">
+                <option value="">All</option>
+                <!-- Dynamic language options will be populated here -->
+            </select>
+        </div>
+
+        <div>
+            <label for="projectFilter">Project:</label>
+            <select id="projectFilter">
+                <option value="">All</option>
+                <!-- Dynamic project options will be populated here -->
+            </select>
+        </div>
+
+        <div>
+            <label for="linkFilter">Link:</label>
+            <select id="linkFilter">
+                <option value="">All</option>
+                <!-- Dynamic link options will be populated here -->
+            </select>
+        </div>
+
+        <div>
+            <label for="typeFilter">Type:</label>
+            <select id="typeFilter">
+                <option value="">All</option>
+                <!-- Dynamic link options will be populated here -->
+            </select>
+        </div>
+
+        <!-- Search bar next to link filter -->
+        <div>
+            <label for="searchBar">Search:</label>
+            <input type="text" id="searchBar" placeholder="Search for names..." />
+        </div>
+    </div>
+    
+    <div id="entityTable"></div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const loadingElement = document.getElementById("loading");
+            const errorContainer = document.getElementById("errorContainer");
+            const jsonContainer = document.getElementById("jsonContainer");
+            const entityTableElement = document.getElementById("entityTable");
+            const languageFilter = document.getElementById("languageFilter");
+            const projectFilter = document.getElementById("projectFilter");
+            const linkFilter = document.getElementById("linkFilter");
+            const typeFilter = document.getElementById("typeFilter");
+            const searchBar = document.getElementById("searchBar");
+
+            function logError(message, error) {
+                console.error(message, error);
+                errorContainer.innerHTML = `
+                    <h2>Error</h2>
+                    <p>${message}</p>
+                    <pre>${error ? error.toString() : 'Unknown error'}</pre>
+                `;
+                loadingElement.style.display = 'none';
+            }
+
+            async function fetchAndParseFile(url, type) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch ${url}: HTTP ${response.status}`);
+                    }
+                    const text = await response.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(text, "application/xml");
+                    if (doc.querySelector("parsererror")) {
+                        throw new Error(`Invalid ${type} structure`);
+                    }
+                    return doc;
+                } catch (error) {
+                    logError(`Failed to load ${type} file`, error);
+                    throw error;
+                }
+            }
+
+            async function processXMLTransformation() {
+    try {
+        console.log("Starting XML transformation process...");
+
+        const xml = await fetchAndParseFile('data.xml', 'XML');
+        const xsl = await fetchAndParseFile('styles.xsl', 'XSL');
+
+        console.log("Starting XSLT transformation...");
+        const xsltProcessor = new XSLTProcessor();
+        xsltProcessor.importStylesheet(xsl);
+
+        let resultFragment;
+        try {
+            resultFragment = xsltProcessor.transformToFragment(xml, document);
+            if (!resultFragment) {
+                throw new Error("XSLT transformation returned null or failed.");
+            }
+        } catch (transformError) {
+            console.error("XSLT Transformation Error:", transformError);
+            throw transformError;
+        }
+
+        const jsonText = resultFragment.textContent?.trim();
+        if (!jsonText) {
+            throw new Error("Transformation result is empty or invalid.");
+        }
+
+        const jsonData = JSON.parse(jsonText);
+        loadingElement.style.display = 'none';
+        jsonContainer.style.display = 'block';
+        jsonContainer.innerHTML = JSON.stringify(jsonData, null, 2);
+
+        entityTableElement.style.display = 'block';
+
+        // Get unique languages, collections, and links from the data
+        const allLanguages = new Set();
+        const allCollections = new Set();
+        const allTypes = new Set();  // Collect unique types
+        const allLinks = new Set();
+
+        jsonData.forEach(entry => {
+            entry["additional names"]?.forEach(item => {
+                if (item.lang) {
+                    allLanguages.add(item.lang);
+                }
+                if (item.collection) {
+                    allCollections.add(item.collection);
+                }
+            });
+            entry["links"]?.forEach(linkObj => {
+                if (linkObj.link) {
+                    allLinks.add(linkObj.link);
+                }
+            });
+            if (entry.type) {
+                allTypes.add(entry.type);  // Add type from the entry to the set
+            }
+        });
+
+        // Populate the language filter dropdown with unique languages
+        allLanguages.forEach(lang => {
+            const option = document.createElement("option");
+            option.value = lang;
+            option.textContent = lang;
+            languageFilter.appendChild(option);
+        });
+
+        // Populate the project filter dropdown with unique collections
+        allCollections.forEach(collection => {
+            const option = document.createElement("option");
+            option.value = collection;
+            option.textContent = collection;
+            projectFilter.appendChild(option);
+        });
+
+        // Populate the link filter dropdown with unique links
+        allLinks.forEach(link => {
+            const option = document.createElement("option");
+            option.value = link;
+            option.textContent = link;
+            linkFilter.appendChild(option);
+        });
+
+        // Populate the type filter dropdown with unique types from the data
+        allTypes.forEach(type => {
+            const option = document.createElement("option");
+            option.value = type;
+            option.textContent = type.charAt(0).toUpperCase() + type.slice(1);  // Capitalize the type name
+            typeFilter.appendChild(option);
+        });
+
+        // Filter function
+        function filterData(data) {
+            const selectedLanguage = languageFilter.value;
+            const selectedCollection = projectFilter.value;
+            const selectedLink = linkFilter.value;
+            const selectedType = typeFilter.value;
+            const searchQuery = searchBar.value.toLowerCase(); // Get the search query
+
+            // Split the search query into words
+            const searchWords = searchQuery.split(/\s+/).filter(Boolean); // Ignore empty strings
+
+            return data.filter(entry => {
+                const additionalNamesMatch = entry["additional names"]?.some(item => {
+                    const langMatch = selectedLanguage ? item.lang === selectedLanguage : true;
+                    const collectionMatch = selectedCollection ? item.collection === selectedCollection : true;
+                    return langMatch && collectionMatch;
+                });
+
+                const linksMatch = entry["links"]?.some(linkObj => {
+                    return selectedLink ? linkObj.link === selectedLink : true;
+                });
+
+                // Check if the selected type matches the entry's type
+                const typeMatch = selectedType ? entry.type === selectedType : true;
+
+                // Check if search query matches any of the relevant fields (full word match)
+                const searchMatch = searchWords.every(word =>
+                    Object.values(entry).some(val => {
+                        if (typeof val === "string") {
+                            return val.toLowerCase().includes(word);
+                        } else if (Array.isArray(val)) {
+                            return val.some(innerVal => 
+                                typeof innerVal === "string" 
+                                    ? innerVal.toLowerCase().includes(word) 
+                                    : Object.values(innerVal).some(nestedVal => 
+                                        typeof nestedVal === "string" && nestedVal.toLowerCase().includes(word)
+                                    )
+                            );
+                        }
+                        return false;
+                    })
+                );
+
+                // Only include entries that match the filters and search query
+                return additionalNamesMatch && (linksMatch || !selectedLink) && typeMatch && searchMatch;
+            });
+        }
+
+        function updateTable() {
+            const filteredData = filterData(jsonData);
+            table.setData(filteredData);
+        }
+
+        // Initialize Tabulator
+        var table = new Tabulator("#entityTable", {
+            data: jsonData,
+            layout: "fitDataStretch",
+            columns: [
+                { title: "Num", formatter: "rownum" },
+                {
+                    title: "Type", // Column for type
+                    field: "type",
+                    width: 150,
+                },
+                {
+                    title: "Name", // Column for name
+                    field: "name",
+                    width: 200,
+                },
+                { title: "Id", field: "id", width: 200, 
+                    formatter: "link",
+                    formatterParams: {
+                        labelField: "id", url: function (cell){
+                            const idsArray = cell.getValue();
+                            if (Array.isArray(idsArray)) {
+                                return (idsArray.map(item => item.id).join(", "));
+                            }
+                        }
+                    },
+                },
+                {
+                    title: "Additional names",
+                    field: "additional names", width: 200,
+                    formatter: function (cell) {
+                        const namesArray = cell.getValue();
+                        if (Array.isArray(namesArray)) {
+                            return namesArray.map(item => item.name).join(", ");
+                        }
+                        return "No Additional names";
+                    }
+                },
+                {
+                    title: "Languages",
+                    field: "additional names", width: 100,
+                    formatter: function (cell) {
+                        const namesArray = cell.getValue();
+                        if (Array.isArray(namesArray)) {
+                            return namesArray.map(item => item.lang).join(", ");
+                        }
+                        return "No Languages";
+                    }
+                },
+                {
+                    title: "Projects",
+                    field: "additional names", width: 200,
+                    formatter: function (cell) {
+                        const namesArray = cell.getValue();
+                        if (Array.isArray(namesArray)) {
+                            return namesArray.map(item => item.collection).join(", ");
+                        }
+                        return "No Collections";
+                    }
+                },
+                {
+                    title: "Links",
+                    field: "links", width: 100,
+                    formatter: function (cell) {
+                        const linksArray = cell.getValue();
+                        if (Array.isArray(linksArray)) {
+                            return linksArray.map(linkObj => linkObj.link).join(", ");
+                        }
+                        return "No Links";
+                    }
+                }
+            ]
+        });
+
+        // Attach event listeners to filters
+        languageFilter.addEventListener("change", updateTable);
+        projectFilter.addEventListener("change", updateTable);
+        linkFilter.addEventListener("change", updateTable);
+        typeFilter.addEventListener("change", updateTable);
+        searchBar.addEventListener("input", updateTable);  // Real-time search
+
+        // Initial table render
+        updateTable();
+
+    } catch (error) {
+        logError("Transformation Error", error);
+    }
+}
+
+
+            processXMLTransformation();
+        });
+    </script>
+</body>
+</html>
