@@ -59,7 +59,7 @@
         #entityTable {
             width: 100%;
             display: none;
-            max-height: auto;
+           
         }
         label {
             font-weight: bold;
@@ -72,6 +72,8 @@
         .tabulator .tabulator-header .tabulator-col {
         background: #b3e1d9
         }
+
+
 
     </style>
 </head>
@@ -119,6 +121,23 @@
             <label for="searchBar">Search:</label>
             <input type="text" id="searchBar" placeholder="Search for names..." />
         </div>
+    </div>
+        <!-- Empty language filter -->
+    <div>
+        <label for="emptyLangFilter">Include Empty Language:</label>
+        <select id="emptyLangFilter">
+            <option value="all">All</option>
+            <option value="onlyEmpty">Only Empty</option>
+            <option value="excludeEmpty">Exclude Empty</option>
+        </select>
+    </div>
+        <!-- Empty Label filter -->
+    <div>
+        <label for="exactLabelFilter">Labels per Type:</label>
+        <select id="exactLabelFilter">
+            <option value="any">Any</option>
+            <option value="exactOne">Exactly One</option>
+        </select>
     </div>
     
     <div id="entityTable"></div>
@@ -257,58 +276,73 @@
 
         // Filter function
         function filterData(data) {
-            const selectedLanguage = languageFilter.value;
-            const selectedCollection = projectFilter.value;
-            const selectedLink = linkFilter.value;
-            const selectedType = typeFilter.value;
-            const searchQuery = searchBar.value.toLowerCase(); // Get the search query
+    const selectedLanguage = languageFilter.value;
+    const selectedCollection = projectFilter.value;
+    const selectedLink = linkFilter.value;
+    const selectedType = typeFilter.value;
+    const searchQuery = searchBar.value.toLowerCase();
+    const emptyLangFilter = document.getElementById("emptyLangFilter").value;
+    const exactLabelFilter = document.getElementById("exactLabelFilter").value;
 
-            // Split the search query into words
-            const searchWords = searchQuery.split(/\s+/).filter(Boolean); // Ignore empty strings
+    // Split the search query into words
+    const searchWords = searchQuery.split(/\s+/).filter(Boolean);
 
-            return data.filter(entry => {
-                const additionalNamesMatch = entry["additional names"]?.some(item => {
-                    const langMatch = selectedLanguage ? item.lang === selectedLanguage : true;
-                    const collectionMatch = selectedCollection ? item.collection === selectedCollection : true;
-                    return langMatch && collectionMatch;
-                });
+    return data.filter(entry => {
+        const additionalNames = entry["additional names"] || [];
+        const links = entry["links"] || [];
 
-                const linksMatch = entry["links"]?.some(linkObj => {
-                    return selectedLink ? linkObj.link === selectedLink : true;
-                });
+        // Language filter logic
+        const languageMatch = additionalNames.some(item => {
+            if (emptyLangFilter === "onlyEmpty") {
+                return !item.lang;
+            } else if (emptyLangFilter === "excludeEmpty") {
+                return item.lang && (!selectedLanguage || item.lang === selectedLanguage);
+            }
+            return !selectedLanguage || item.lang === selectedLanguage;
+        });
 
-                // Check if the selected type matches the entry's type
-                const typeMatch = selectedType ? entry.type === selectedType : true;
+        // Label filter logic (exactly one label per type and language)
+        const labelMatch = exactLabelFilter === "any" || additionalNames.filter(item => {
+            return (!selectedLanguage || item.lang === selectedLanguage);
+        }).length === 1;
 
-                // Check if search query matches any of the relevant fields (full word match)
-                const searchMatch = searchWords.every(word =>
-                    Object.values(entry).some(val => {
-                        if (typeof val === "string") {
-                            return val.toLowerCase().includes(word);
-                        } else if (Array.isArray(val)) {
-                            return val.some(innerVal => 
-                                typeof innerVal === "string" 
-                                    ? innerVal.toLowerCase().includes(word) 
-                                    : Object.values(innerVal).some(nestedVal => 
-                                        typeof nestedVal === "string" && nestedVal.toLowerCase().includes(word)
-                                    )
-                            );
-                        }
-                        return false;
-                    })
-                );
+        // Link filter logic
+        const linkMatch = links.some(linkObj => {
+            return !selectedLink || linkObj.link === selectedLink;
+        });
 
-                // Only include entries that match the filters and search query
-                return additionalNamesMatch && (linksMatch || !selectedLink) && typeMatch && searchMatch;
-            });
-        }
+        // Type filter logic
+        const typeMatch = !selectedType || entry.type === selectedType;
+
+        // Search filter logic
+        const searchMatch = searchWords.every(word =>
+            Object.values(entry).some(val => {
+                if (typeof val === "string") {
+                    return val.toLowerCase().includes(word);
+                } else if (Array.isArray(val)) {
+                    return val.some(innerVal =>
+                        typeof innerVal === "string"
+                            ? innerVal.toLowerCase().includes(word)
+                            : Object.values(innerVal).some(nestedVal =>
+                                typeof nestedVal === "string" && nestedVal.toLowerCase().includes(word)
+                            )
+                    );
+                }
+                return false;
+            })
+        );
+
+        return languageMatch && labelMatch && linkMatch && typeMatch && searchMatch;
+    });
+}
+
 
         function updateTable() {
             const filteredData = filterData(jsonData);
             table.setData(filteredData);
         }
 
-          // Allowed values for project validation
+        // Allowed values for project validation
         const allowedProjects = ["QHOD_prefLabel", "QHOD_prefLabel-vipa", "QHOD_prefLabel-graviz"];
 
 // Custom formatter for "Projects" column
@@ -332,9 +366,10 @@ function highlightInvalidProjects(cell) {
 var table = new Tabulator("#entityTable", {
     data: jsonData,
     layout: "fitDataStretch",
+    resizableColumnFit:true, 
     columns: [
-        { title: "Num", formatter: "rownum" },
-        { title: "Type", field: "type", width: 150 },
+        { title: "Num", formatter: "rownum", headerSort:false, hozAlign:"center", resizable:false, frozen:true},
+        { title: "Type", field: "type", width: 90 },
         { title: "Name", field: "name", width: 200 },
         { title: "Id", field: "id", width: 200, 
                     formatter: "link",
@@ -346,21 +381,72 @@ var table = new Tabulator("#entityTable", {
                             }
                         }
                     },
-                },
-        {
-            title: "Additional names",
-            field: "additional names", width: 200,
-            formatter: function (cell) {
-                const namesArray = cell.getValue();
-                if (Array.isArray(namesArray)) {
-                    return namesArray.map(item => item.name).join(", ");
-                }
-                return "No Additional names";
+                
+}, {
+    title: "Additional names",  // Column title
+    field: "additional names",  // Field name
+    width: 200,  // Column width
+    formatter: function(cell) {
+        const namesArray = cell.getValue();
+        if (Array.isArray(namesArray)) {
+            return namesArray.map(item => item.name).join(", ");
+        }
+        return "No Additional names";
+    },
+    cellClick: function(e, cell) {
+        // When the cell is clicked, show a popup specific to this cell
+        var data = cell.getRow().getData();  // Get the row data
+        var container = document.createElement("div");
+        var contents = "<strong style='font-size:1.2em;'>Additional Names</strong><br/><ul style='padding:0; margin-top:10px; margin-bottom:0;'>";
+
+        // Check if additional names exist and are an array
+        if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
+            // Loop through the array of additional names and display each name
+            data['additional names'].forEach(function(item) {
+                contents += "<li><strong>Name:</strong> " + item.name + "</li>";
+            });
+        } else {
+            // If no additional names are found, show a message
+            contents += "<li>No additional names available</li>";
+        }
+
+        contents += "</ul>";
+
+        // Add the content to the container
+        container.innerHTML = contents;
+
+        // Create the popup and append it to the body or the cell's parent
+        var popup = document.createElement("div");
+        popup.style.position = "absolute";
+        popup.style.zIndex = 1000;
+        popup.style.backgroundColor = "#fff";
+        popup.style.border = "1px solid #ddd";
+        popup.style.padding = "10px";
+        popup.style.maxWidth = "300px";
+        popup.style.boxShadow = "0px 0px 10px rgba(0,0,0,0.2)";
+        popup.innerHTML = container.innerHTML;
+
+        // Position the popup relative to the clicked cell
+        var cellRect = cell.getElement().getBoundingClientRect();
+        popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px"; // Position below the cell
+        popup.style.left = cellRect.left + window.scrollX + "px"; // Position next to the cell
+
+        document.body.appendChild(popup);
+
+        // Optional: Close the popup when clicking anywhere outside of it
+        function closePopup(e) {
+            if (!popup.contains(e.target) && e.target !== cell.getElement()) {
+                popup.remove();
+                document.removeEventListener("click", closePopup);
             }
-        },
+        }
+        document.addEventListener("click", closePopup);
+    }
+},
+
         {
             title: "Languages",
-            field: "additional names", width: 100,
+            field: "additional names", width: 100, 
             formatter: function (cell) {
                 const namesArray = cell.getValue();
                 if (Array.isArray(namesArray)) {
@@ -373,10 +459,61 @@ var table = new Tabulator("#entityTable", {
             title: "Projects",
             field: "additional names", width: 200,
             formatter: highlightInvalidProjects // Apply the custom formatter
+            ,
+    cellClick: function(e, cell) {
+        // When the cell is clicked, show a popup specific to this cell
+        var data = cell.getRow().getData();  // Get the row data
+        var container = document.createElement("div");
+        var contents = "<strong style='font-size:1.2em;'>Related projects</strong><br/><ul style='padding:0; margin-top:10px; margin-bottom:0;'>";
+
+        // Check if additional names exist and are an array
+        if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
+            // Loop through the array of additional names and display each name
+            data['additional names'].forEach(function(item) {
+                contents += "<li><strong>Project labels:</strong> " + item.collection + "</li>";
+            });
+        } else {
+            // If no additional names are found, show a message
+            contents += "<li>No project labels available</li>";
+        }
+
+        contents += "</ul>";
+
+        // Add the content to the container
+        container.innerHTML = contents;
+
+        // Create the popup and append it to the body or the cell's parent
+        var popup = document.createElement("div");
+        popup.style.position = "absolute";
+        popup.style.zIndex = 1000;
+        popup.style.backgroundColor = "#fff";
+        popup.style.border = "1px solid #ddd";
+        popup.style.padding = "10px";
+        popup.style.maxWidth = "300px";
+        popup.style.boxShadow = "0px 0px 10px rgba(0,0,0,0.2)";
+        popup.innerHTML = container.innerHTML;
+
+        // Position the popup relative to the clicked cell
+        var cellRect = cell.getElement().getBoundingClientRect();
+        popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px"; // Position below the cell
+        popup.style.left = cellRect.left + window.scrollX + "px"; // Position next to the cell
+
+        document.body.appendChild(popup);
+
+        // Optional: Close the popup when clicking anywhere outside of it
+        function closePopup(e) {
+            if (!popup.contains(e.target) && e.target !== cell.getElement()) {
+                popup.remove();
+                document.removeEventListener("click", closePopup);
+            }
+        }
+        document.addEventListener("click", closePopup);
+    }
+
         },
         {
             title: "Links",
-            field: "links", width: 100,
+            field: "links", width: 100, resizable:false,
             formatter: function (cell) {
                 const linksArray = cell.getValue();
                 if (Array.isArray(linksArray)) {
@@ -388,22 +525,30 @@ var table = new Tabulator("#entityTable", {
     ]
 });
 
+
 // Attach event listeners to filters
 languageFilter.addEventListener("change", updateTable);
 projectFilter.addEventListener("change", updateTable);
 linkFilter.addEventListener("change", updateTable);
 typeFilter.addEventListener("change", updateTable);
 searchBar.addEventListener("input", updateTable);
+const emptyLangFilter = document.getElementById("emptyLangFilter");
+const exactLabelFilter = document.getElementById("exactLabelFilter");
+emptyLangFilter.addEventListener("change", updateTable);
+exactLabelFilter.addEventListener("change", updateTable);
 
+
+//table.setHeight(500);
 updateTable(); // Initial table update
 } catch (error) {
 console.error("Error:", error);
 }
 }
+////  
+//table.redraw();
 
 processXMLTransformation();
 });
     </script>
 </body>
 </html>
-
