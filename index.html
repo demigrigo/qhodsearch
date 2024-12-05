@@ -308,26 +308,38 @@
             table.setData(filteredData);
         }
 
-        // Initialize Tabulator
-        var table = new Tabulator("#entityTable", {
-            data: jsonData,
-            layout: "fitDataStretch",
-            columns: [
-                { title: "Num", formatter: "rownum" },
-                {
-                    title: "Type", // Column for type
-                    field: "type",
-                    width: 150,
-                },
-                {
-                    title: "Name", // Column for name
-                    field: "name",
-                    width: 200,
-                },
-                { title: "Id", field: "id", width: 200, 
+          // Allowed values for project validation
+        const allowedProjects = ["QHOD_prefLabel", "QHOD_prefLabel-vipa", "QHOD_prefLabel-graviz"];
+
+// Custom formatter for "Projects" column
+function highlightInvalidProjects(cell) {
+    const namesArray = cell.getValue();
+    if (Array.isArray(namesArray)) {
+        // Check if at least one of the collections matches the allowed values
+        const hasValidProject = namesArray.some(item => allowedProjects.includes(item.collection));
+        if (!hasValidProject) {
+            // Highlight the cell if no valid project is found
+            cell.getElement().style.backgroundColor = "yellow";
+            cell.getElement().style.color = "black";
+        }
+        // Return a comma-separated list of collections for display
+        return namesArray.map(item => item.collection).join(", ");
+    }
+    return "No Projects"; // Default text if no array
+}
+
+// Initialize Tabulator
+var table = new Tabulator("#entityTable", {
+    data: jsonData,
+    layout: "fitDataStretch",
+    columns: [
+        { title: "Num", formatter: "rownum" },
+        { title: "Type", field: "type", width: 150 },
+        { title: "Name", field: "name", width: 200 },
+        { title: "Id", field: "id", width: 200, 
                     formatter: "link",
                     formatterParams: {
-                        labelField: "id", url: function (cell){
+                        label: "Click here for MPR Data", labelField: "id", url: function (cell){
                             const idsArray = cell.getValue();
                             if (Array.isArray(idsArray)) {
                                 return (idsArray.map(item => item.id).join(", "));
@@ -335,71 +347,63 @@
                         }
                     },
                 },
-                {
-                    title: "Additional names",
-                    field: "additional names", width: 200,
-                    formatter: function (cell) {
-                        const namesArray = cell.getValue();
-                        if (Array.isArray(namesArray)) {
-                            return namesArray.map(item => item.name).join(", ");
-                        }
-                        return "No Additional names";
-                    }
-                },
-                {
-                    title: "Languages",
-                    field: "additional names", width: 100,
-                    formatter: function (cell) {
-                        const namesArray = cell.getValue();
-                        if (Array.isArray(namesArray)) {
-                            return namesArray.map(item => item.lang).join(", ");
-                        }
-                        return "No Languages";
-                    }
-                },
-                {
-                    title: "Projects",
-                    field: "additional names", width: 200,
-                    formatter: function (cell) {
-                        const namesArray = cell.getValue();
-                        if (Array.isArray(namesArray)) {
-                            return namesArray.map(item => item.collection).join(", ");
-                        }
-                        return "No Collections";
-                    }
-                },
-                {
-                    title: "Links",
-                    field: "links", width: 100,
-                    formatter: function (cell) {
-                        const linksArray = cell.getValue();
-                        if (Array.isArray(linksArray)) {
-                            return linksArray.map(linkObj => linkObj.link).join(", ");
-                        }
-                        return "No Links";
-                    }
+        {
+            title: "Additional names",
+            field: "additional names", width: 200,
+            formatter: function (cell) {
+                const namesArray = cell.getValue();
+                if (Array.isArray(namesArray)) {
+                    return namesArray.map(item => item.name).join(", ");
                 }
-            ]
-        });
+                return "No Additional names";
+            }
+        },
+        {
+            title: "Languages",
+            field: "additional names", width: 100,
+            formatter: function (cell) {
+                const namesArray = cell.getValue();
+                if (Array.isArray(namesArray)) {
+                    return namesArray.map(item => item.lang).join(", ");
+                }
+                return "No Languages";
+            }
+        },
+        {
+            title: "Projects",
+            field: "additional names", width: 200,
+            formatter: highlightInvalidProjects // Apply the custom formatter
+        },
+        {
+            title: "Links",
+            field: "links", width: 100,
+            formatter: function (cell) {
+                const linksArray = cell.getValue();
+                if (Array.isArray(linksArray)) {
+                    return linksArray.map(linkObj => linkObj.link).join(", ");
+                }
+                return "No Links";
+            }
+        }
+    ]
+});
 
-        // Attach event listeners to filters
-        languageFilter.addEventListener("change", updateTable);
-        projectFilter.addEventListener("change", updateTable);
-        linkFilter.addEventListener("change", updateTable);
-        typeFilter.addEventListener("change", updateTable);
-        searchBar.addEventListener("input", updateTable);  // Real-time search
+// Attach event listeners to filters
+languageFilter.addEventListener("change", updateTable);
+projectFilter.addEventListener("change", updateTable);
+linkFilter.addEventListener("change", updateTable);
+typeFilter.addEventListener("change", updateTable);
+searchBar.addEventListener("input", updateTable);
 
-        // Initial table render
-        updateTable();
-
-    } catch (error) {
-        logError("Transformation Error", error);
-    }
+updateTable(); // Initial table update
+} catch (error) {
+console.error("Error:", error);
+}
 }
 
-
-            processXMLTransformation();
-        });
+processXMLTransformation();
+});
     </script>
 </body>
 </html>
+
