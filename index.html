@@ -185,9 +185,10 @@
 
             async function processXMLTransformation() {
     try {
+        
         console.log("Starting XML transformation process...");
 
-        const url = 'https://qhod.net/o:qhod.standOff/TEI_SOURCE';
+        const url = 'https://thingproxy.freeboard.io/fetch/https://qhod.net/o:qhod.standOff/TEI_SOURCE';
         const xml = await fetchAndParseFile(url, 'XML');
         //const xml = await fetchAndParseFile('data.xml', 'XML');
         const xsl = await fetchAndParseFile('styles.xsl', 'XSL');
