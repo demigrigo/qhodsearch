@@ -1,0 +1,28 @@
+name: Manual Deployment
+
+on:
+  workflow_dispatch:  # Enables manual triggering of the workflow
+
+jobs:
+  deploy:
+    name: Deploy Job
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write  # Needed for OIDC authentication
+      contents: read   # Allows reading repository content
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate with Cloud Provider
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubOIDCRole
+          role-session-name: GitHubActionsSession
+          aws-region: us-east-1
+
+      - name: Deploy
+        run: |
+          echo "Running deployment..."
