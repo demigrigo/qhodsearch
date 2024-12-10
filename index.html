@@ -18,7 +18,7 @@
         });
     </script>
     <style>
-               body {
+        body {
             font-family: Arial, sans-serif;
             margin: 20px;
             max-width: 1200px;
@@ -73,6 +73,8 @@
         background: #b3e1d9
         }
 
+
+
     </style>
 </head>
 <body>
@@ -124,17 +126,17 @@
     <div>
         <label for="emptyLangFilter">Include Empty Language:</label>
         <select id="emptyLangFilter">
-            <option value="all">All</option>
-            <option value="onlyEmpty">Only Empty</option>
-            <option value="excludeEmpty">Exclude Empty</option>
+            <option value="all">All Language Labels</option>
+            <option value="onlyEmpty">Empty Language Label in PrefLabel</option>
+            <option value="excludeEmpty">Exclude Empty Language Label in PrefLabel</option>
         </select>
     </div>
         <!-- Empty Label filter -->
     <div>
-        <label for="exactLabelFilter">Labels per Type:</label>
+        <label for="exactLabelFilter">Language Labels per Type:</label>
         <select id="exactLabelFilter">
-            <option value="any">Any</option>
-            <option value="exactOne">Exactly One</option>
+            <option value="any">Any Language</option>
+            <option value="exactOne">Exactly One Language or Empty</option>
         </select>
     </div>
     
@@ -183,12 +185,11 @@
 
             async function processXMLTransformation() {
     try {
-        
         console.log("Starting XML transformation process...");
+        //const url = 'http://localhost:8080/proxy?url=https://qhod.net/o:qhod.standOff/TEI_SOURCE';
+        const xml = await fetchAndParseFile("QhoDstandOff.xml", 'XML');
 
-        //const url = 'https://thingproxy.freeboard.io/fetch/https://qhod.net/o:qhod.standOff/TEI_SOURCE';
-        //const xml = await fetchAndParseFile(url, 'XML');
-        const xml = await fetchAndParseFile('data.xml', 'XML');
+        //const xml = await fetchAndParseFile('https://qhod.net/o:qhod.standOff/TEI_SOURCE', 'XML');
         const xsl = await fetchAndParseFile('styles.xsl', 'XSL');
 
         console.log("Starting XSLT transformation...");
@@ -522,8 +523,20 @@ var table = new Tabulator("#entityTable", {
                 }
                 return "No Links";
             }
-        }
-    ]
+        },
+       // {
+    //title: "Update PrefLabel in MRP",
+    //hozAlign: "center",
+    ///editor: true,
+    //field: 'checkbox',
+    //formatter: "tickCross",
+    //cellClick: function (e, cell) {
+        // Toggle the cell value on click
+       // let currentValue = cell.getValue();
+     //   cell.setValue(!currentValue);
+    //}
+//},   
+    ],
 });
 
 
@@ -553,3 +566,5 @@ processXMLTransformation();
     </script>
 </body>
 </html>
+
+
