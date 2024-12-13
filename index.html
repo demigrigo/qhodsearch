@@ -277,51 +277,42 @@
         });
 
         // Filter function
-        function filterData(data) {
+       function filterData(data) {
     const selectedLanguage = languageFilter.value;
-    const selectedCollection = projectFilter.value;
+    const selectedCollection = projectFilter.value; // Updated for "collection" filter
     const selectedLink = linkFilter.value;
     const selectedType = typeFilter.value;
     const searchQuery = searchBar.value.toLowerCase();
     const emptyLangFilter = document.getElementById("emptyLangFilter").value;
     const exactLabelFilter = document.getElementById("exactLabelFilter").value;
 
-    // Split the search query into words
     const searchWords = searchQuery.split(/\s+/).filter(Boolean);
 
     return data.filter(entry => {
         const additionalNames = entry["additional names"] || [];
         const links = entry["links"] || [];
 
-        // Language filter logic
         const languageMatch = additionalNames.some(item => {
-            if (emptyLangFilter === "onlyEmpty") {
-                return !item.lang;
-            } else if (emptyLangFilter === "excludeEmpty") {
-                return item.lang && (!selectedLanguage || item.lang === selectedLanguage);
-            }
+            if (emptyLangFilter === "onlyEmpty") return !item.lang;
+            if (emptyLangFilter === "excludeEmpty") return item.lang && (!selectedLanguage || item.lang === selectedLanguage);
             return !selectedLanguage || item.lang === selectedLanguage;
         });
 
-        // Label filter logic (exactly one label per type and language)
+        const projectMatch = additionalNames.some(item => {
+            return !selectedCollection || item.collection === selectedCollection;
+        });
+
         const labelMatch = exactLabelFilter === "any" || additionalNames.filter(item => {
             return (!selectedLanguage || item.lang === selectedLanguage);
         }).length === 1;
 
-        // Link filter logic
-        const linkMatch = links.some(linkObj => {
-            return !selectedLink || linkObj.link === selectedLink;
-        });
-
-        // Type filter logic
+        const linkMatch = links.some(linkObj => !selectedLink || linkObj.link === selectedLink);
         const typeMatch = !selectedType || entry.type === selectedType;
 
-        // Search filter logic
         const searchMatch = searchWords.every(word =>
             Object.values(entry).some(val => {
-                if (typeof val === "string") {
-                    return val.toLowerCase().includes(word);
-                } else if (Array.isArray(val)) {
+                if (typeof val === "string") return val.toLowerCase().includes(word);
+                if (Array.isArray(val)) {
                     return val.some(innerVal =>
                         typeof innerVal === "string"
                             ? innerVal.toLowerCase().includes(word)
@@ -334,9 +325,10 @@
             })
         );
 
-        return languageMatch && labelMatch && linkMatch && typeMatch && searchMatch;
+        return languageMatch && projectMatch && labelMatch && linkMatch && typeMatch && searchMatch;
     });
 }
+
 
 
         function updateTable() {
