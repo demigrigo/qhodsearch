@@ -285,8 +285,8 @@
 
         // Project match - allow entities with no additional names or matching collection
         const projectMatch = selectedCollection === "" || 
-            additionalNames.some(item => item.collection === selectedCollection) ||
-            (additionalNames.length === 0 && links.some(linkObj => linkObj.link === "graviz"));
+            additionalNames.some(item => item.collection === selectedCollection)||
+            (selectedCollection !== "" && additionalNames.length === 0 && links.some(linkObj => linkObj.link === "graviz"));
 
         // Label match with more flexible logic
         const labelMatch = (function () {
