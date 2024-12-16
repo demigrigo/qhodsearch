@@ -283,12 +283,12 @@
         const additionalNames = entry["additional names"] || [];
         const links = entry["links"] || [];
 
-        // Project match
-        const projectMatch = additionalNames.some(item => {
-            return !selectedCollection || item.collection === selectedCollection;
-        });
+        // Project match - allow entities with no additional names or matching collection
+        const projectMatch = selectedCollection === "" || 
+            additionalNames.some(item => item.collection === selectedCollection) ||
+            (additionalNames.length === 0 && links.some(linkObj => linkObj.link === "graviz"));
 
-        // Label match
+        // Label match with more flexible logic
         const labelMatch = (function () {
             const additionalLangs = [
                 ...new Set(
@@ -296,25 +296,28 @@
                 ),
             ];
             if (exactLabelFilter === "exactOne") {
-                return additionalLangs.length === 1;
+                return additionalLangs.length === 1 || additionalNames.length === 0;
             } else if (exactLabelFilter !== "any") {
                 const filterLanguages = exactLabelFilter.split(",").map(lang => lang.trim());
                 return (
-                    additionalLangs.length === filterLanguages.length &&
-                    additionalLangs.every(lang => filterLanguages.includes(lang))
+                    (additionalLangs.length === filterLanguages.length &&
+                    additionalLangs.every(lang => filterLanguages.includes(lang))) ||
+                    additionalNames.length === 0
                 );
             }
             return true;
         })();
 
         // Link match
-        const linkMatch = links.some(linkObj => !selectedLink || linkObj.link === selectedLink);
-        
+        const linkMatch = selectedLink === "" || 
+            links.some(linkObj => linkObj.link === selectedLink);
+
         // Type match
         const typeMatch = !selectedType || entry.type === selectedType;
 
         // Language match logic
-        const languageMatch = (selectedLanguage === "" || additionalNames.some(item => item.lang === selectedLanguage || !item.lang));
+        const languageMatch = (selectedLanguage === "" || 
+            additionalNames.some(item => item.lang === selectedLanguage || !item.lang));
 
         // Search match
         const searchMatch = searchWords.every(word =>
@@ -387,11 +390,11 @@ function highlightInvalidProjects(cell) {
 
 // Initialize Tabulator
 var table = new Tabulator("#entityTable", {
+    height: 400,
     data: jsonData,
     layout: "fitDataStretch",
-    resizableColumnFit:true, 
+    rowHeader:{formatter:"rownum", headerSort:false, hozAlign:"center", resizable:false, frozen:true},
     columns: [
-        { title: "Num", formatter: "rownum", headerSort:false, hozAlign:"center", resizable:false, frozen:true},
         { title: "Type", field: "type", width: 90 },
         { title: "Name", field: "name", width: 200 },
         { title: "Id", field: "id", width: 200, 
