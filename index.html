@@ -72,9 +72,6 @@
         .tabulator .tabulator-header .tabulator-col {
         background: #b3e1d9
         }
-
-
-
     </style>
 </head>
 <body>
@@ -122,21 +119,15 @@
             <input type="text" id="searchBar" placeholder="Search for names..." />
         </div>
     </div>
-        <!-- Empty language filter -->
-    <div>
-        <label for="emptyLangFilter">Include Empty Language:</label>
-        <select id="emptyLangFilter">
-            <option value="all">All Language Labels</option>
-            <option value="onlyEmpty">Empty Language Label in PrefLabel</option>
-            <option value="excludeEmpty">Exclude Empty Language Label in PrefLabel</option>
-        </select>
-    </div>
         <!-- Empty Label filter -->
     <div>
-        <label for="exactLabelFilter">Language Labels per Type:</label>
+        <label for="exactLabelFilter">Language Labels:</label>
         <select id="exactLabelFilter">
             <option value="any">Any Language</option>
-            <option value="exactOne">Exactly One Language or Empty</option>
+            <option value="exactOne">Exactly One Language Per Project or Empty</option>
+            <option value="en">English Only (en)</option>
+            <option value="de">German Only (de)</option>
+            <option value="en,de">English and German (en, de)</option>
         </select>
     </div>
     
@@ -163,7 +154,7 @@
                 `;
                 loadingElement.style.display = 'none';
             }
-
+    
             async function fetchAndParseFile(url, type) {
                 try {
                     const response = await fetch(url);
@@ -191,7 +182,8 @@
 
         //const xml = await fetchAndParseFile('https://qhod.net/o:qhod.standOff/TEI_SOURCE', 'XML');
         const xsl = await fetchAndParseFile('styles.xsl', 'XSL');
-
+        const personElements = xml.querySelectorAll("person");
+        const placeElements = xml.querySelectorAll("place");
         console.log("Starting XSLT transformation...");
         const xsltProcessor = new XSLTProcessor();
         xsltProcessor.importStylesheet(xsl);
@@ -218,7 +210,7 @@
         jsonContainer.innerHTML = JSON.stringify(jsonData, null, 2);
 
         entityTableElement.style.display = 'block';
-
+ 
         // Get unique languages, collections, and links from the data
         const allLanguages = new Set();
         const allCollections = new Set();
@@ -283,45 +275,52 @@
     const selectedLink = linkFilter.value;
     const selectedType = typeFilter.value;
     const searchQuery = searchBar.value.toLowerCase();
-    const emptyLangFilter = document.getElementById("emptyLangFilter").value;
     const exactLabelFilter = document.getElementById("exactLabelFilter").value;
-
-    // Split the search query into words
+    
     const searchWords = searchQuery.split(/\s+/).filter(Boolean);
 
     return data.filter(entry => {
         const additionalNames = entry["additional names"] || [];
         const links = entry["links"] || [];
 
-        // Language filter logic
-        const languageMatch = additionalNames.some(item => {
-            if (emptyLangFilter === "onlyEmpty") {
-                return !item.lang;
-            } else if (emptyLangFilter === "excludeEmpty") {
-                return item.lang && (!selectedLanguage || item.lang === selectedLanguage);
+        // Project match
+        const projectMatch = additionalNames.some(item => {
+            return !selectedCollection || item.collection === selectedCollection;
+        });
+
+        // Label match
+        const labelMatch = (function () {
+            const additionalLangs = [
+                ...new Set(
+                    additionalNames.map(item => item.lang).filter(Boolean)
+                ),
+            ];
+            if (exactLabelFilter === "exactOne") {
+                return additionalLangs.length === 1;
+            } else if (exactLabelFilter !== "any") {
+                const filterLanguages = exactLabelFilter.split(",").map(lang => lang.trim());
+                return (
+                    additionalLangs.length === filterLanguages.length &&
+                    additionalLangs.every(lang => filterLanguages.includes(lang))
+                );
             }
-            return !selectedLanguage || item.lang === selectedLanguage;
-        });
+            return true;
+        })();
 
-        // Label filter logic (exactly one label per type and language)
-        const labelMatch = exactLabelFilter === "any" || additionalNames.filter(item => {
-            return (!selectedLanguage || item.lang === selectedLanguage);
-        }).length === 1;
-
-        // Link filter logic
-        const linkMatch = links.some(linkObj => {
-            return !selectedLink || linkObj.link === selectedLink;
-        });
-
-        // Type filter logic
+        // Link match
+        const linkMatch = links.some(linkObj => !selectedLink || linkObj.link === selectedLink);
+        
+        // Type match
         const typeMatch = !selectedType || entry.type === selectedType;
 
-        // Search filter logic
+        // Language match logic
+        const languageMatch = (selectedLanguage === "" || additionalNames.some(item => item.lang === selectedLanguage || !item.lang));
+
+        // Search match
         const searchMatch = searchWords.every(word =>
             Object.values(entry).some(val => {
-                if (typeof val === "string") {
-                    return val.toLowerCase().includes(word);
-                } else if (Array.isArray(val)) {
+                if (typeof val === "string") return val.toLowerCase().includes(word);
+                if (Array.isArray(val)) {
                     return val.some(innerVal =>
                         typeof innerVal === "string"
                             ? innerVal.toLowerCase().includes(word)
@@ -334,10 +333,9 @@
             })
         );
 
-        return languageMatch && labelMatch && linkMatch && typeMatch && searchMatch;
+        return projectMatch && labelMatch && linkMatch && typeMatch && languageMatch && searchMatch;
     });
 }
-
 
         function updateTable() {
             const filteredData = filterData(jsonData);
@@ -363,6 +361,29 @@ function highlightInvalidProjects(cell) {
     }
     return "No Projects"; // Default text if no array
 }
+
+//function parseTimestampAndUser(element) {
+  //  const timestampUserData = [];
+   // const comments = element.childNodes;
+    
+   // comments.forEach(comment => {
+     //   if (comment.nodeType === Node.COMMENT_NODE) {
+       //     const commentText = comment.textContent.trim();
+            
+            // More flexible regex to match timestamp and user format
+         //   const match = commentText.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z):\s*(\S.*)$/);
+            
+           // if (match) {
+             //   const timestamp = match[1];
+               // const user = match[2];
+               // timestampUserData.push({ timestamp, user });
+            //}
+       // }
+   // });
+    
+   // return timestampUserData;
+//}
+
 
 // Initialize Tabulator
 var table = new Tabulator("#entityTable", {
@@ -524,6 +545,24 @@ var table = new Tabulator("#entityTable", {
                 return "No Links";
             }
         },
+       // { 
+         //   title: "Timestamp", 
+          //  field: "timestamp", 
+            //width: 100,
+            //formatter: function(cell) {
+             //   return cell.getValue() || "No Timestamp";
+           // }
+        //},
+        ///{ 
+           /// title: "User", 
+            //field: "user", 
+            //width: 100,
+            //formatter: function(cell) {
+              //  return cell.getValue() || "Unknown User";
+            //}
+        //},
+    ],
+});
        // {
     //title: "Update PrefLabel in MRP",
     //hozAlign: "center",
@@ -536,8 +575,8 @@ var table = new Tabulator("#entityTable", {
      //   cell.setValue(!currentValue);
     //}
 //},   
-    ],
-});
+    
+
 
 
 // Attach event listeners to filters
@@ -546,10 +585,8 @@ projectFilter.addEventListener("change", updateTable);
 linkFilter.addEventListener("change", updateTable);
 typeFilter.addEventListener("change", updateTable);
 searchBar.addEventListener("input", updateTable);
-const emptyLangFilter = document.getElementById("emptyLangFilter");
-const exactLabelFilter = document.getElementById("exactLabelFilter");
-emptyLangFilter.addEventListener("change", updateTable);
 exactLabelFilter.addEventListener("change", updateTable);
+
 
 
 //table.setHeight(500);
