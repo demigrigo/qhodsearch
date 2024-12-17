@@ -214,7 +214,8 @@
         // Get unique languages, collections, and links from the data
         const allLanguages = new Set();
         const allCollections = new Set();
-        const allTypes = new Set();  // Collect unique types
+        const allTypes = new Set(); // Collect unique types
+        const allWhos = new Set(); 
         const allLinks = new Set();
 
         jsonData.forEach(entry => {
@@ -396,8 +397,8 @@ var table = new Tabulator("#entityTable", {
     rowHeader:{formatter:"rownum", headerSort:false, hozAlign:"center", resizable:false, frozen:true},
     columns: [
         { title: "Type", field: "type", width: 90 },
-        { title: "Name", field: "name", width: 200 },
-        { title: "Id", field: "id", width: 200, 
+        { title: "Name", field: "name", width: 150 },
+        { title: "Id", field: "id", width: 180, 
                     formatter: "link",
                     formatterParams: {
                         label: "Click here for MPR Data", labelField: "id", url: function (cell){
@@ -411,7 +412,7 @@ var table = new Tabulator("#entityTable", {
 }, {
     title: "Additional names",  // Column title
     field: "additional names",  // Field name
-    width: 200,  // Column width
+    width: 100,  // Column width
     formatter: function(cell) {
         const namesArray = cell.getValue();
         if (Array.isArray(namesArray)) {
@@ -472,7 +473,7 @@ var table = new Tabulator("#entityTable", {
 
         {
             title: "Languages",
-            field: "additional names", width: 100, 
+            field: "additional names", width: 50, 
             formatter: function (cell) {
                 const namesArray = cell.getValue();
                 if (Array.isArray(namesArray)) {
@@ -483,7 +484,7 @@ var table = new Tabulator("#entityTable", {
         },
         {
             title: "Projects",
-            field: "additional names", width: 200,
+            field: "additional names", width: 180,
             formatter: highlightInvalidProjects // Apply the custom formatter
             ,
     cellClick: function(e, cell) {
@@ -548,37 +549,31 @@ var table = new Tabulator("#entityTable", {
                 return "No Links";
             }
         },
-       // { 
-         //   title: "Timestamp", 
-          //  field: "timestamp", 
-            //width: 100,
-            //formatter: function(cell) {
-             //   return cell.getValue() || "No Timestamp";
-           // }
-        //},
-        ///{ 
-           /// title: "User", 
-            //field: "user", 
-            //width: 100,
-            //formatter: function(cell) {
-              //  return cell.getValue() || "Unknown User";
-            //}
-        //},
+        {
+    title: "When and Who", // New column
+    field: "when", // Field where the 'when' and 'who' data is stored
+    width: 200,
+    formatter: function(cell) {
+        const whenData = cell.getValue(); // Access the 'when' field from JSON data
+        if (Array.isArray(whenData) && whenData.length > 0) {
+            // Extract "when" and "who" values safely
+            return whenData.map(item => {
+                if (item.when) {
+                    const [timestamp, user] = item.when.split(": ");
+                    if (timestamp && user) {
+                        return `<div><strong>When:</strong> ${timestamp}</div>
+                                <div><strong>Who:</strong> ${user}</div>`;
+                    }
+                }
+                return `<div>Invalid Data</div>`; // Handle malformed 'when' entries
+            }).join("<br>");
+        }
+        return `<div>No Data</div>`; // When 'when' field is empty or invalid
+    }
+        },
+      
     ],
 });
-       // {
-    //title: "Update PrefLabel in MRP",
-    //hozAlign: "center",
-    ///editor: true,
-    //field: 'checkbox',
-    //formatter: "tickCross",
-    //cellClick: function (e, cell) {
-        // Toggle the cell value on click
-       // let currentValue = cell.getValue();
-     //   cell.setValue(!currentValue);
-    //}
-//},   
-    
 
 
 
@@ -606,5 +601,4 @@ processXMLTransformation();
     </script>
 </body>
 </html>
-
 
