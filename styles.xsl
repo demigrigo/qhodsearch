@@ -128,6 +128,15 @@
         <xsl:text>]</xsl:text>
         
         
+        <xsl:text>, "when": [</xsl:text>
+        <xsl:for-each select=".//comment()[contains(., '202')][1]">
+            <xsl:text>{</xsl:text>
+            <xsl:text>"when": "</xsl:text>
+            <xsl:value-of select="."/>
+            <xsl:text>"}</xsl:text>
+            <xsl:if test="position() != last()">,</xsl:if>
+        </xsl:for-each>
+        <xsl:text>]</xsl:text>
         <xsl:text>}</xsl:text>
     </xsl:template>
     
@@ -181,10 +190,19 @@
         </xsl:for-each>
         <xsl:text>]</xsl:text>
         
+        <xsl:text>, "when": [</xsl:text>
+        <xsl:for-each select=".//comment()[contains(., '202')][1]">
+            <xsl:text>{</xsl:text>
+            <xsl:text>"when": "</xsl:text>
+            <xsl:value-of select="."/>
+            <xsl:text>"}</xsl:text>
+            <xsl:if test="position() != last()">,</xsl:if>
+        </xsl:for-each>
+        <xsl:text>]</xsl:text>
         <xsl:text>}</xsl:text>
     </xsl:template>
-    
-  <!--<xsl:template name="processOrg" match="tei:org">
+  
+    <!--<xsl:template name="processOrg" match="tei:org">
         <xsl:text>{</xsl:text>
         <xsl:text>"type": "organization",</xsl:text>
         <xsl:text>"name": "</xsl:text>
