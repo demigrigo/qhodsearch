@@ -215,7 +215,6 @@
         const allLanguages = new Set();
         const allCollections = new Set();
         const allTypes = new Set(); // Collect unique types
-        const allWhos = new Set(); 
         const allLinks = new Set();
 
         jsonData.forEach(entry => {
@@ -284,12 +283,11 @@
         const additionalNames = entry["additional names"] || [];
         const links = entry["links"] || [];
 
-        // Project match - allow entities with no additional names or matching collection
+        // More strict project match
         const projectMatch = selectedCollection === "" || 
-            additionalNames.some(item => item.collection === selectedCollection)||
-            (selectedCollection !== "" && additionalNames.length === 0 && links.some(linkObj => linkObj.link === "graviz"));
+            additionalNames.some(item => item.collection === selectedCollection);
 
-        // Label match with more flexible logic
+        // More strict label match
         const labelMatch = (function () {
             const additionalLangs = [
                 ...new Set(
@@ -297,28 +295,25 @@
                 ),
             ];
             if (exactLabelFilter === "exactOne") {
-                return additionalLangs.length === 1 || additionalNames.length === 0;
+                return additionalLangs.length === 1;
             } else if (exactLabelFilter !== "any") {
                 const filterLanguages = exactLabelFilter.split(",").map(lang => lang.trim());
-                return (
-                    (additionalLangs.length === filterLanguages.length &&
-                    additionalLangs.every(lang => filterLanguages.includes(lang))) ||
-                    additionalNames.length === 0
-                );
+                return additionalLangs.length === filterLanguages.length &&
+                    additionalLangs.every(lang => filterLanguages.includes(lang));
             }
             return true;
         })();
 
-        // Link match
+        // More strict link match
         const linkMatch = selectedLink === "" || 
             links.some(linkObj => linkObj.link === selectedLink);
 
         // Type match
         const typeMatch = !selectedType || entry.type === selectedType;
 
-        // Language match logic
-        const languageMatch = (selectedLanguage === "" || 
-            additionalNames.some(item => item.lang === selectedLanguage || !item.lang));
+        // More strict language match
+        const languageMatch = selectedLanguage === "" || 
+            additionalNames.some(item => item.lang === selectedLanguage);
 
         // Search match
         const searchMatch = searchWords.every(word =>
@@ -365,28 +360,6 @@ function highlightInvalidProjects(cell) {
     }
     return "No Projects"; // Default text if no array
 }
-
-//function parseTimestampAndUser(element) {
-  //  const timestampUserData = [];
-   // const comments = element.childNodes;
-    
-   // comments.forEach(comment => {
-     //   if (comment.nodeType === Node.COMMENT_NODE) {
-       //     const commentText = comment.textContent.trim();
-            
-            // More flexible regex to match timestamp and user format
-         //   const match = commentText.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z):\s*(\S.*)$/);
-            
-           // if (match) {
-             //   const timestamp = match[1];
-               // const user = match[2];
-               // timestampUserData.push({ timestamp, user });
-            //}
-       // }
-   // });
-    
-   // return timestampUserData;
-//}
 
 
 // Initialize Tabulator
