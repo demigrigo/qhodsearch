@@ -70,7 +70,13 @@
         }
 
         .tabulator .tabulator-header .tabulator-col {
-        background: #b3e1d9
+            background: #b3e1d9
+        }
+        
+        .clickable-name {
+            text-decoration: underline;
+            cursor: pointer;
+            color: #0066cc;
         }
     </style>
 </head>
@@ -175,403 +181,534 @@
             }
 
             async function processXMLTransformation() {
-    try {
-        console.log("Starting XML transformation process...");
-        //const url = 'http://localhost:8080/proxy?url=https://qhod.net/o:qhod.standOff/TEI_SOURCE';
-        const xml = await fetchAndParseFile("QhoDstandOff.xml", 'XML');
+                try {
+                    console.log("Starting XML transformation process...");
+                    //const url = 'http://localhost:8080/proxy?url=https://qhod.net/o:qhod.standOff/TEI_SOURCE';
+                    const xml = await fetchAndParseFile("QhoDstandOff.xml", 'XML');
 
-        //const xml = await fetchAndParseFile('https://qhod.net/o:qhod.standOff/TEI_SOURCE', 'XML');
-        const xsl = await fetchAndParseFile('styles.xsl', 'XSL');
-        const personElements = xml.querySelectorAll("person");
-        const placeElements = xml.querySelectorAll("place");
-        console.log("Starting XSLT transformation...");
-        const xsltProcessor = new XSLTProcessor();
-        xsltProcessor.importStylesheet(xsl);
+                    //const xml = await fetchAndParseFile('https://qhod.net/o:qhod.standOff/TEI_SOURCE', 'XML');
+                    const xsl = await fetchAndParseFile('styles.xsl', 'XSL');
+                    const personElements = xml.querySelectorAll("person");
+                    const placeElements = xml.querySelectorAll("place");
+                    console.log("Starting XSLT transformation...");
+                    const xsltProcessor = new XSLTProcessor();
+                    xsltProcessor.importStylesheet(xsl);
 
-        let resultFragment;
-        try {
-            resultFragment = xsltProcessor.transformToFragment(xml, document);
-            if (!resultFragment) {
-                throw new Error("XSLT transformation returned null or failed.");
-            }
-        } catch (transformError) {
-            console.error("XSLT Transformation Error:", transformError);
-            throw transformError;
-        }
-
-        const jsonText = resultFragment.textContent?.trim();
-        if (!jsonText) {
-            throw new Error("Transformation result is empty or invalid.");
-        }
-
-        const jsonData = JSON.parse(jsonText);
-        loadingElement.style.display = 'none';
-        jsonContainer.style.display = 'block';
-        jsonContainer.innerHTML = JSON.stringify(jsonData, null, 2);
-
-        entityTableElement.style.display = 'block';
- 
-        // Get unique languages, collections, and links from the data
-        const allLanguages = new Set();
-        const allCollections = new Set();
-        const allTypes = new Set(); // Collect unique types
-        const allLinks = new Set();
-
-        jsonData.forEach(entry => {
-            entry["additional names"]?.forEach(item => {
-                if (item.lang) {
-                    allLanguages.add(item.lang);
-                }
-                if (item.collection) {
-                    allCollections.add(item.collection);
-                }
-            });
-            entry["links"]?.forEach(linkObj => {
-                if (linkObj.link) {
-                    allLinks.add(linkObj.link);
-                }
-            });
-            if (entry.type) {
-                allTypes.add(entry.type);  // Add type from the entry to the set
-            }
-        });
-
-        // Populate the language filter dropdown with unique languages
-        allLanguages.forEach(lang => {
-            const option = document.createElement("option");
-            option.value = lang;
-            option.textContent = lang;
-            languageFilter.appendChild(option);
-        });
-
-        // Populate the project filter dropdown with unique collections
-        allCollections.forEach(collection => {
-            const option = document.createElement("option");
-            option.value = collection;
-            option.textContent = collection;
-            projectFilter.appendChild(option);
-        });
-
-        // Populate the link filter dropdown with unique links
-        allLinks.forEach(link => {
-            const option = document.createElement("option");
-            option.value = link;
-            option.textContent = link;
-            linkFilter.appendChild(option);
-        });
-
-        // Populate the type filter dropdown with unique types from the data
-        allTypes.forEach(type => {
-            const option = document.createElement("option");
-            option.value = type;
-            option.textContent = type.charAt(0).toUpperCase() + type.slice(1);  // Capitalize the type name
-            typeFilter.appendChild(option);
-        });
-
-        // Filter function
-        function filterData(data) {
-    const selectedLanguage = languageFilter.value;
-    const selectedCollection = projectFilter.value;
-    const selectedLink = linkFilter.value;
-    const selectedType = typeFilter.value;
-    const searchQuery = searchBar.value.toLowerCase();
-    const exactLabelFilter = document.getElementById("exactLabelFilter").value;
-    
-    const searchWords = searchQuery.split(/\s+/).filter(Boolean);
-
-    return data.filter(entry => {
-        const additionalNames = entry["additional names"] || [];
-        const links = entry["links"] || [];
-
-        // More strict project match
-        const projectMatch = selectedCollection === "" || 
-            additionalNames.some(item => item.collection === selectedCollection);
-
-        // More strict label match
-        const labelMatch = (function () {
-            const additionalLangs = [
-                ...new Set(
-                    additionalNames.map(item => item.lang).filter(Boolean)
-                ),
-            ];
-            if (exactLabelFilter === "exactOne") {
-                return additionalLangs.length === 1;
-            } else if (exactLabelFilter !== "any") {
-                const filterLanguages = exactLabelFilter.split(",").map(lang => lang.trim());
-                return additionalLangs.length === filterLanguages.length &&
-                    additionalLangs.every(lang => filterLanguages.includes(lang));
-            }
-            return true;
-        })();
-
-        // More strict link match
-        const linkMatch = selectedLink === "" || 
-            links.some(linkObj => linkObj.link === selectedLink);
-
-        // Type match
-        const typeMatch = !selectedType || entry.type === selectedType;
-
-        // More strict language match
-        const languageMatch = selectedLanguage === "" || 
-            additionalNames.some(item => item.lang === selectedLanguage);
-
-        // Search match
-        const searchMatch = searchWords.every(word =>
-            Object.values(entry).some(val => {
-                if (typeof val === "string") return val.toLowerCase().includes(word);
-                if (Array.isArray(val)) {
-                    return val.some(innerVal =>
-                        typeof innerVal === "string"
-                            ? innerVal.toLowerCase().includes(word)
-                            : Object.values(innerVal).some(nestedVal =>
-                                typeof nestedVal === "string" && nestedVal.toLowerCase().includes(word)
-                            )
-                    );
-                }
-                return false;
-            })
-        );
-
-        return projectMatch && labelMatch && linkMatch && typeMatch && languageMatch && searchMatch;
-    });
-}
-
-        function updateTable() {
-            const filteredData = filterData(jsonData);
-            table.setData(filteredData);
-        }
-
-        // Allowed values for project validation
-        const allowedProjects = ["QHOD_prefLabel", "QHOD_prefLabel-vipa", "QHOD_prefLabel-graviz"];
-
-// Custom formatter for "Projects" column
-function highlightInvalidProjects(cell) {
-    const namesArray = cell.getValue();
-    if (Array.isArray(namesArray)) {
-        // Check if at least one of the collections matches the allowed values
-        const hasValidProject = namesArray.some(item => allowedProjects.includes(item.collection));
-        if (!hasValidProject) {
-            // Highlight the cell if no valid project is found
-            cell.getElement().style.backgroundColor = "yellow";
-            cell.getElement().style.color = "black";
-        }
-        // Return a comma-separated list of collections for display
-        return namesArray.map(item => item.collection).join(", ");
-    }
-    return "No Projects"; // Default text if no array
-}
-
-
-// Initialize Tabulator
-var table = new Tabulator("#entityTable", {
-    height: 400,
-    data: jsonData,
-    layout: "fitDataStretch",
-    rowHeader:{formatter:"rownum", headerSort:false, hozAlign:"center", resizable:false, frozen:true},
-    columns: [
-        { title: "Type", field: "type", width: 90 },
-        { title: "Name", field: "name", width: 150 },
-        { title: "Id", field: "id", width: 180, 
-                    formatter: "link",
-                    formatterParams: {
-                        label: "Click here for MPR Data", labelField: "id", url: function (cell){
-                            const idsArray = cell.getValue();
-                            if (Array.isArray(idsArray)) {
-                                return (idsArray.map(item => item.id).join(", "));
-                            }
+                    let resultFragment;
+                    try {
+                        resultFragment = xsltProcessor.transformToFragment(xml, document);
+                        if (!resultFragment) {
+                            throw new Error("XSLT transformation returned null or failed.");
                         }
-                    },
-                
-}, {
-    title: "Additional names",  // Column title
-    field: "additional names",  // Field name
-    width: 100,  // Column width
-    formatter: function(cell) {
-        const namesArray = cell.getValue();
-        if (Array.isArray(namesArray)) {
-            return namesArray.map(item => item.name).join(", ");
-        }
-        return "No Additional names";
-    },
-    cellClick: function(e, cell) {
-        // When the cell is clicked, show a popup specific to this cell
-        var data = cell.getRow().getData();  // Get the row data
-        var container = document.createElement("div");
-        var contents = "<strong style='font-size:1.2em;'>Additional Names</strong><br/><ul style='padding:0; margin-top:10px; margin-bottom:0;'>";
-
-        // Check if additional names exist and are an array
-        if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
-            // Loop through the array of additional names and display each name
-            data['additional names'].forEach(function(item) {
-                contents += "<li><strong>Name:</strong> " + item.name + "</li>";
-            });
-        } else {
-            // If no additional names are found, show a message
-            contents += "<li>No additional names available</li>";
-        }
-
-        contents += "</ul>";
-
-        // Add the content to the container
-        container.innerHTML = contents;
-
-        // Create the popup and append it to the body or the cell's parent
-        var popup = document.createElement("div");
-        popup.style.position = "absolute";
-        popup.style.zIndex = 1000;
-        popup.style.backgroundColor = "#fff";
-        popup.style.border = "1px solid #ddd";
-        popup.style.padding = "10px";
-        popup.style.maxWidth = "300px";
-        popup.style.boxShadow = "0px 0px 10px rgba(0,0,0,0.2)";
-        popup.innerHTML = container.innerHTML;
-
-        // Position the popup relative to the clicked cell
-        var cellRect = cell.getElement().getBoundingClientRect();
-        popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px"; // Position below the cell
-        popup.style.left = cellRect.left + window.scrollX + "px"; // Position next to the cell
-
-        document.body.appendChild(popup);
-
-        // Optional: Close the popup when clicking anywhere outside of it
-        function closePopup(e) {
-            if (!popup.contains(e.target) && e.target !== cell.getElement()) {
-                popup.remove();
-                document.removeEventListener("click", closePopup);
-            }
-        }
-        document.addEventListener("click", closePopup);
-    }
-},
-
-        {
-            title: "Languages",
-            field: "additional names", width: 50, 
-            formatter: function (cell) {
-                const namesArray = cell.getValue();
-                if (Array.isArray(namesArray)) {
-                    return namesArray.map(item => item.lang).join(", ");
-                }
-                return "No Languages";
-            }
-        },
-        {
-            title: "Projects",
-            field: "additional names", width: 180,
-            formatter: highlightInvalidProjects // Apply the custom formatter
-            ,
-    cellClick: function(e, cell) {
-        // When the cell is clicked, show a popup specific to this cell
-        var data = cell.getRow().getData();  // Get the row data
-        var container = document.createElement("div");
-        var contents = "<strong style='font-size:1.2em;'>Related projects</strong><br/><ul style='padding:0; margin-top:10px; margin-bottom:0;'>";
-
-        // Check if additional names exist and are an array
-        if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
-            // Loop through the array of additional names and display each name
-            data['additional names'].forEach(function(item) {
-                contents += "<li><strong>Project labels:</strong> " + item.collection + "</li>";
-            });
-        } else {
-            // If no additional names are found, show a message
-            contents += "<li>No project labels available</li>";
-        }
-
-        contents += "</ul>";
-
-        // Add the content to the container
-        container.innerHTML = contents;
-
-        // Create the popup and append it to the body or the cell's parent
-        var popup = document.createElement("div");
-        popup.style.position = "absolute";
-        popup.style.zIndex = 1000;
-        popup.style.backgroundColor = "#fff";
-        popup.style.border = "1px solid #ddd";
-        popup.style.padding = "10px";
-        popup.style.maxWidth = "300px";
-        popup.style.boxShadow = "0px 0px 10px rgba(0,0,0,0.2)";
-        popup.innerHTML = container.innerHTML;
-
-        // Position the popup relative to the clicked cell
-        var cellRect = cell.getElement().getBoundingClientRect();
-        popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px"; // Position below the cell
-        popup.style.left = cellRect.left + window.scrollX + "px"; // Position next to the cell
-
-        document.body.appendChild(popup);
-
-        // Optional: Close the popup when clicking anywhere outside of it
-        function closePopup(e) {
-            if (!popup.contains(e.target) && e.target !== cell.getElement()) {
-                popup.remove();
-                document.removeEventListener("click", closePopup);
-            }
-        }
-        document.addEventListener("click", closePopup);
-    }
-
-        },
-        {
-            title: "Links",
-            field: "links", width: 100, resizable:false,
-            formatter: function (cell) {
-                const linksArray = cell.getValue();
-                if (Array.isArray(linksArray)) {
-                    return linksArray.map(linkObj => linkObj.link).join(", ");
-                }
-                return "No Links";
-            }
-        },
-        {
-    title: "When and Who", // New column
-    field: "when", // Field where the 'when' and 'who' data is stored
-    width: 200,
-    formatter: function(cell) {
-        const whenData = cell.getValue(); // Access the 'when' field from JSON data
-        if (Array.isArray(whenData) && whenData.length > 0) {
-            // Extract "when" and "who" values safely
-            return whenData.map(item => {
-                if (item.when) {
-                    const [timestamp, user] = item.when.split(": ");
-                    if (timestamp && user) {
-                        return `<div><strong>When:</strong> ${timestamp}</div>
-                                <div><strong>Who:</strong> ${user}</div>`;
+                    } catch (transformError) {
+                        console.error("XSLT Transformation Error:", transformError);
+                        throw transformError;
                     }
-                }
-                return `<div>Invalid Data</div>`; // Handle malformed 'when' entries
-            }).join("<br>");
-        }
-        return `<div>No Data</div>`; // When 'when' field is empty or invalid
+
+                    const jsonText = resultFragment.textContent?.trim();
+                    if (!jsonText) {
+                        throw new Error("Transformation result is empty or invalid.");
+                    }
+
+                    const jsonData = JSON.parse(jsonText);
+                    
+                    // Debug: Log the first item's structure to see if authoritative_ids exists
+                    if (jsonData && jsonData.length > 0) {
+                        console.log("First entity structure:", JSON.stringify(jsonData[0], null, 2));
+                    }
+                    
+                    loadingElement.style.display = 'none';
+                    jsonContainer.style.display = 'block';
+                    jsonContainer.innerHTML = JSON.stringify(jsonData, null, 2);
+
+                    entityTableElement.style.display = 'block';
+            
+                    // Get unique languages, collections, and links from the data
+                    const allLanguages = new Set();
+                    const allCollections = new Set();
+                    const allTypes = new Set(); // Collect unique types
+                    const allLinks = new Set();
+
+                    jsonData.forEach(entry => {
+                        entry["additional names"]?.forEach(item => {
+                            if (item.lang) {
+                                allLanguages.add(item.lang);
+                            }
+                            if (item.collection) {
+                                allCollections.add(item.collection);
+                            }
+                        });
+                        entry["links"]?.forEach(linkObj => {
+                            if (linkObj.link) {
+                                allLinks.add(linkObj.link);
+                            }
+                        });
+                        if (entry.type) {
+                            allTypes.add(entry.type);  // Add type from the entry to the set
+                        }
+                    });
+
+                    // Populate the language filter dropdown with unique languages
+                    allLanguages.forEach(lang => {
+                        const option = document.createElement("option");
+                        option.value = lang;
+                        option.textContent = lang;
+                        languageFilter.appendChild(option);
+                    });
+
+                    // Populate the project filter dropdown with unique collections
+                    allCollections.forEach(collection => {
+                        const option = document.createElement("option");
+                        option.value = collection;
+                        option.textContent = collection;
+                        projectFilter.appendChild(option);
+                    });
+
+                    // Populate the link filter dropdown with unique links
+                    allLinks.forEach(link => {
+                        const option = document.createElement("option");
+                        option.value = link;
+                        option.textContent = link;
+                        linkFilter.appendChild(option);
+                    });
+
+                    // Populate the type filter dropdown with unique types from the data
+                    allTypes.forEach(type => {
+                        const option = document.createElement("option");
+                        option.value = type;
+                        option.textContent = type.charAt(0).toUpperCase() + type.slice(1);  // Capitalize the type name
+                        typeFilter.appendChild(option);
+                    });
+
+                    // Filter function
+                    function filterData(data) {
+                        const selectedLanguage = languageFilter.value;
+                        const selectedCollection = projectFilter.value;
+                        const selectedLink = linkFilter.value;
+                        const selectedType = typeFilter.value;
+                        const searchQuery = searchBar.value.toLowerCase();
+                        const exactLabelFilter = document.getElementById("exactLabelFilter").value;
+                        
+                        const searchWords = searchQuery.split(/\s+/).filter(Boolean);
+
+                        return data.filter(entry => {
+                            const additionalNames = entry["additional names"] || [];
+                            const links = entry["links"] || [];
+
+                            // More strict project match
+                            const projectMatch = selectedCollection === "" || 
+                                additionalNames.some(item => item.collection === selectedCollection);
+
+                            // More strict label match
+                            const labelMatch = (function () {
+                                const additionalLangs = [
+                                    ...new Set(
+                                        additionalNames.map(item => item.lang).filter(Boolean)
+                                    ),
+                                ];
+                                if (exactLabelFilter === "exactOne") {
+                                    return additionalLangs.length === 1;
+                                } else if (exactLabelFilter !== "any") {
+                                    const filterLanguages = exactLabelFilter.split(",").map(lang => lang.trim());
+                                    return additionalLangs.length === filterLanguages.length &&
+                                        additionalLangs.every(lang => filterLanguages.includes(lang));
+                                }
+                                return true;
+                            })();
+
+                            // More strict link match
+                            const linkMatch = selectedLink === "" || 
+                                links.some(linkObj => linkObj.link === selectedLink);
+
+                            // Type match
+                            const typeMatch = !selectedType || entry.type === selectedType;
+
+                            // More strict language match
+                            const languageMatch = selectedLanguage === "" || 
+                                additionalNames.some(item => item.lang === selectedLanguage);
+
+                            // Search match
+                            const searchMatch = searchWords.every(word =>
+                                Object.values(entry).some(val => {
+                                    if (typeof val === "string") return val.toLowerCase().includes(word);
+                                    if (Array.isArray(val)) {
+                                        return val.some(innerVal =>
+                                            typeof innerVal === "string"
+                                                ? innerVal.toLowerCase().includes(word)
+                                                : Object.values(innerVal).some(nestedVal =>
+                                                    typeof nestedVal === "string" && nestedVal.toLowerCase().includes(word)
+                                                )
+                                        );
+                                    }
+                                    return false;
+                                })
+                            );
+
+                            return projectMatch && labelMatch && linkMatch && typeMatch && languageMatch && searchMatch;
+                        });
+                    }
+
+                    function updateTable() {
+                        const filteredData = filterData(jsonData);
+                        table.setData(filteredData);
+                    }
+
+                    // Allowed values for project validation
+                    const allowedProjects = ["QHOD_prefLabel", "QHOD_prefLabel-vipa", "QHOD_prefLabel-graviz"];
+
+                    // Custom formatter for "Projects" column
+                    function highlightInvalidProjects(cell) {
+                        const namesArray = cell.getValue();
+                        if (Array.isArray(namesArray)) {
+                            // Check if at least one of the collections matches the allowed values
+                            const hasValidProject = namesArray.some(item => allowedProjects.includes(item.collection));
+                            if (!hasValidProject) {
+                                // Highlight the cell if no valid project is found
+                                cell.getElement().style.backgroundColor = "yellow";
+                                cell.getElement().style.color = "black";
+                            }
+                            // Return a comma-separated list of collections for display
+                            return namesArray.map(item => item.collection).join(", ");
+                        }
+                        return "No Projects"; // Default text if no array
+                    }
+
+                    // Initialize Tabulator
+                    var table = new Tabulator("#entityTable", {
+                        height: 400,
+                        data: jsonData,
+                        layout: "fitDataStretch",
+                        rowHeader:{formatter:"rownum", headerSort:false, hozAlign:"center", resizable:false, frozen:true},
+                        columns: [
+                            { title: "Type", field: "type", width: 90 },
+                            { 
+                                title: "Name", 
+                                field: "name", 
+                                width: 150,
+                                cellClick: function(e, cell) {
+    // When the cell is clicked, show a popup with name and authority links
+    var data = cell.getRow().getData();
+    
+    // Debug: Log the data to see what's available
+    console.log("Clicked row data:", JSON.stringify(data, null, 2));
+    
+    var container = document.createElement("div");
+    var contents = "<strong style='font-size:1.2em;'>" + data.name + "</strong><br/>";
+    
+    // Add entity type
+    if (data.type) {
+        contents += "<div><strong>Type:</strong> " + data.type.charAt(0).toUpperCase() + data.type.slice(1) + "</div>";
     }
-        },
-      
-    ],
-});
+    
+    // Add ID information if available
+    if (Array.isArray(data.id) && data.id.length > 0) {
+        contents += "<div><strong>ID:</strong> " + data.id.map(item => item.id).join(", ") + "</div>";
+    }
+    
+    // Add additional names if available
+    if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
+        contents += "<br/><strong>Alternative Names:</strong><ul style='padding-left: 20px; margin-top: 5px; margin-bottom: 5px;'>";
+        data['additional names'].forEach(function(item) {
+            contents += "<li>" + item.name;
+            if (item.lang) {
+                contents += " <small>(" + item.lang + ")</small>";
+            }
+            contents += "</li>";
+        });
+        contents += "</ul>";
+    }
+    
+    // Find GND links only
+    var gndLinks = [];
 
-
-
-// Attach event listeners to filters
-languageFilter.addEventListener("change", updateTable);
-projectFilter.addEventListener("change", updateTable);
-linkFilter.addEventListener("change", updateTable);
-typeFilter.addEventListener("change", updateTable);
-searchBar.addEventListener("input", updateTable);
-exactLabelFilter.addEventListener("change", updateTable);
-
-
-
-//table.setHeight(500);
-updateTable(); // Initial table update
-} catch (error) {
-console.error("Error:", error);
+// Check in authoritative_ids - handling both possible structures
+if (Array.isArray(data['authoritative_ids'])) {
+    // First structure: array of objects with type/url properties
+    const gndByType = data['authoritative_ids'].filter(id => id.type === 'GND');
+    if (gndByType.length > 0) {
+        gndLinks = gndLinks.concat(gndByType);
+        console.log("Found GND in authoritative_ids by type:", gndByType);
+    }
+    
+    // Second structure: array of objects with direct GND property
+    const gndByProperty = data['authoritative_ids'].filter(id => id.GND);
+    if (gndByProperty.length > 0) {
+        gndByProperty.forEach(item => {
+            gndLinks.push({
+                type: 'GND',
+                url: item.GND
+            });
+        });
+        console.log("Found GND in authoritative_ids by property:", gndByProperty);
+    }
 }
-}
-////  
-//table.redraw();
 
-processXMLTransformation();
-});
+// Add GND links if they exist
+if (gndLinks.length > 0) {
+    contents += "<br/><strong>GND Link:</strong><ul style='padding-left: 20px; margin-top: 5px; margin-bottom: 5px;'>";
+    
+    // Loop through GND links and display each as a hyperlink
+    gndLinks.forEach(function(item) {
+        contents += `<li><a href="${item.url}" target="_blank">${item.url}</a></li>`;
+    });
+    
+    contents += "</ul>";
+} else {
+    // If no GND links found, show a message
+    contents += "<br/><div>No GND link available.</div>";
+    console.log("No GND link found for this entity.");
+}
+
+    // Add the content to the container
+    container.innerHTML = contents;
+
+    // Create the popup and append it to the body
+    var popup = document.createElement("div");
+    popup.style.position = "absolute";
+    popup.style.zIndex = 1000;
+    popup.style.backgroundColor = "#fff";
+    popup.style.border = "1px solid #ddd";
+    popup.style.padding = "10px";
+    popup.style.maxWidth = "400px";
+    popup.style.boxShadow = "0px 0px 10px rgba(0,0,0,0.2)";
+    popup.innerHTML = container.innerHTML;
+
+    // Position the popup relative to the clicked cell
+    var cellRect = cell.getElement().getBoundingClientRect();
+    popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px"; // Position below the cell
+    popup.style.left = cellRect.left + window.scrollX + "px"; // Position next to the cell
+
+    document.body.appendChild(popup);
+
+    // Close the popup when clicking anywhere outside of it
+    function closePopup(e) {
+        if (!popup.contains(e.target) && e.target !== cell.getElement()) {
+            popup.remove();
+            document.removeEventListener("click", closePopup);
+        }
+    }
+    document.addEventListener("click", closePopup);
+}   },   
+                            { 
+                                title: "Id", 
+                                field: "id", 
+                                width: 180, 
+                                formatter: "link",
+                                formatterParams: {
+                                    label: "Click here for MPR Data", 
+                                    labelField: "id", 
+                                    url: function (cell){
+                                        const idsArray = cell.getValue();
+                                        if (Array.isArray(idsArray)) {
+                                            return (idsArray.map(item => item.id).join(", "));
+                                        }
+                                    }
+                                },
+                            }, 
+                            {
+                                title: "Additional names",  // Column title
+                                field: "additional names",  // Field name
+                                width: 100,  // Column width
+                                formatter: function(cell) {
+                                    const namesArray = cell.getValue();
+                                    if (Array.isArray(namesArray)) {
+                                        return namesArray.map(item => item.name).join(", ");
+                                    }
+                                    return "No Additional names";
+                                },
+                                cellClick: function(e, cell) {
+                                    // When the cell is clicked, show a popup specific to this cell
+                                    var data = cell.getRow().getData();  // Get the row data
+                                    var container = document.createElement("div");
+                                    var contents = "<strong style='font-size:1.2em;'>Additional Names</strong><br/><ul style='padding:0; margin-top:10px; margin-bottom:0;'>";
+
+                                    // Check if additional names exist and are an array
+                                    if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
+                                        // Loop through the array of additional names and display each name
+                                        data['additional names'].forEach(function(item) {
+                                            contents += "<li><strong>Name:</strong> " + item.name + "</li>";
+                                        });
+                                    } else {
+                                        // If no additional names are found, show a message
+                                        contents += "<li>No additional names available</li>";
+                                    }
+
+                                    contents += "</ul>";
+                                    
+                                
+                                    // Add the content to the container
+                                    container.innerHTML = contents;
+
+                                    // Create the popup and append it to the body or the cell's parent
+                                    var popup = document.createElement("div");
+                                    popup.style.position = "absolute";
+                                    popup.style.zIndex = 1000;
+                                    popup.style.backgroundColor = "#fff";
+                                    popup.style.border = "1px solid #ddd";
+                                    popup.style.padding = "10px";
+                                    popup.style.maxWidth = "300px";
+                                    popup.style.boxShadow = "0px 0px 10px rgba(0,0,0,0.2)";
+                                    popup.innerHTML = container.innerHTML;
+
+                                    // Position the popup relative to the clicked cell
+                                    var cellRect = cell.getElement().getBoundingClientRect();
+                                    popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px"; // Position below the cell
+                                    popup.style.left = cellRect.left + window.scrollX + "px"; // Position next to the cell
+
+                                    document.body.appendChild(popup);
+
+                                    // Optional: Close the popup when clicking anywhere outside of it
+                                    function closePopup(e) {
+                                        if (!popup.contains(e.target) && e.target !== cell.getElement()) {
+                                            popup.remove();
+                                            document.removeEventListener("click", closePopup);
+                                        }
+                                    }
+                                    document.addEventListener("click", closePopup);
+                                }
+                            },
+                            {
+                                title: "Languages",
+                                field: "additional names", 
+                                width: 50, 
+                                formatter: function (cell) {
+                                    const namesArray = cell.getValue();
+                                    if (Array.isArray(namesArray)) {
+                                        return namesArray.map(item => item.lang).join(", ");
+                                    }
+                                    return "No Languages";
+                                }
+                            },
+                            {
+                                title: "Projects",
+                                field: "additional names", 
+                                width: 180,
+                                formatter: highlightInvalidProjects, // Apply the custom formatter
+                                cellClick: function(e, cell) {
+                                    // When the cell is clicked, show a popup specific to this cell
+                                    var data = cell.getRow().getData();  // Get the row data
+                                    var container = document.createElement("div");
+                                    var contents = "<strong style='font-size:1.2em;'>Related projects</strong><br/><ul style='padding:0; margin-top:10px; margin-bottom:0;'>";
+
+                                    // Check if additional names exist and are an array
+                                    if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
+                                        // Loop through the array of additional names and display each name
+                                        data['additional names'].forEach(function(item) {
+                                            contents += "<li><strong>Project labels:</strong> " + item.collection + "</li>";
+                                        });
+                                    } else {
+                                        // If no additional names are found, show a message
+                                        contents += "<li>No project labels available</li>";
+                                    }
+
+                                    contents += "</ul>";
+                                    
+                                    // Check for authority links
+                                    var authIds = null;
+                                    if (Array.isArray(data.authoritative_ids) && data.authoritative_ids.length > 0) {
+                                        authIds = data.authoritative_ids;
+                                    } 
+                                    else if (Array.isArray(data.authority_ids) && data.authority_ids.length > 0) {
+                                        authIds = data.authority_ids;
+                                    }
+                                    
+                                    // Add authority identifiers section if they exist
+                                    if (authIds && authIds.length > 0) {
+                                        contents += "<br/><strong>Authority Links:</strong><ul style='padding:0; margin-top:10px; margin-bottom:0;'>";
+                                        
+                                        // Loop through the array of authority IDs and display each as a hyperlink
+                                        authIds.forEach(function(item) {
+                                            contents += `<li><strong>${item.type}:</strong> <a href="${item.url}" target="_blank">${item.url}</a></li>`;
+                                        });
+                                        
+                                        contents += "</ul>";
+                                    }
+
+                                    // Add the content to the container
+                                    container.innerHTML = contents;
+
+                                    // Create the popup and append it to the body or the cell's parent
+                                    var popup = document.createElement("div");
+                                    popup.style.position = "absolute";
+                                    popup.style.zIndex = 1000;
+                                    popup.style.backgroundColor = "#fff";
+                                    popup.style.border = "1px solid #ddd";
+                                    popup.style.padding = "10px";
+                                    popup.style.maxWidth = "300px";
+                                    popup.style.boxShadow = "0px 0px 10px rgba(0,0,0,0.2)";
+                                    popup.innerHTML = container.innerHTML;
+
+                                    // Position the popup relative to the clicked cell
+                                    var cellRect = cell.getElement().getBoundingClientRect();
+                                    popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px"; // Position below the cell
+                                    popup.style.left = cellRect.left + window.scrollX + "px"; // Position next to the cell
+
+                                    document.body.appendChild(popup);
+
+                                    // Optional: Close the popup when clicking anywhere outside of it
+                                    function closePopup(e) {
+                                        if (!popup.contains(e.target) && e.target !== cell.getElement()) {
+                                            popup.remove();
+                                            document.removeEventListener("click", closePopup);
+                                        }
+                                    }
+                                    document.addEventListener("click", closePopup);
+                                }
+                            },
+                            {
+                                title: "Links",
+                                field: "links", 
+                                width: 100, 
+                                resizable:false,
+                                formatter: function (cell) {
+                                    const linksArray = cell.getValue();
+                                    if (Array.isArray(linksArray)) {
+                                        return linksArray.map(linkObj => linkObj.link).join(", ");
+                                    }
+                                    return "No Links";
+                                }
+                            },
+                            {
+                                title: "When and Who", // New column
+                                field: "when", // Field where the 'when' and 'who' data is stored
+                                width: 200,
+                                formatter: function(cell) {
+                                    const whenData = cell.getValue(); // Access the 'when' field from JSON data
+                                    if (Array.isArray(whenData) && whenData.length > 0) {
+                                        // Extract "when" and "who" values safely
+                                        return whenData.map(item => {
+                                            if (item.when) {
+                                                const [timestamp, user] = item.when.split(": ");
+                                                if (timestamp && user) {
+                                                    return `<div><strong>When:</strong> ${timestamp}</div>
+                                                            <div><strong>Who:</strong> ${user}</div>`;}
+                                                return `<div>Invalid Data</div>`; // Handle malformed 'when' entries
+                                            }
+                                            return `<div>No Data</div>`; // When 'when' field is empty or invalid
+                                        }).join("<br>");
+                                    }
+                                    return `<div>No Data</div>`; // When 'when' field is empty or invalid
+                                }
+                            },
+                        ],
+                    });
+
+                    // Attach event listeners to filters
+                    languageFilter.addEventListener("change", updateTable);
+                    projectFilter.addEventListener("change", updateTable);
+                    linkFilter.addEventListener("change", updateTable);
+                    typeFilter.addEventListener("change", updateTable);
+                    searchBar.addEventListener("input", updateTable);
+                    exactLabelFilter.addEventListener("change", updateTable);
+
+                    updateTable(); // Initial table update
+                } catch (error) {
+                    console.error("Error:", error);
+                }
+            }
+
+            processXMLTransformation();
+        });
     </script>
 </body>
 </html>
-
