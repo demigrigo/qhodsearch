@@ -127,6 +127,16 @@
         </xsl:for-each>
         <xsl:text>]</xsl:text>
         
+        <!-- Add authoritative_ids for GND links in persons -->
+        <xsl:text>,"authoritative_ids": [</xsl:text>
+        <xsl:for-each select="./tei:idno[@type='GND']">
+            <xsl:text>{</xsl:text>
+            <xsl:text>"GND": "</xsl:text>
+            <xsl:value-of select="."/>
+            <xsl:text>"}</xsl:text>
+            <xsl:if test="position() != last()">,</xsl:if>
+        </xsl:for-each>
+        <xsl:text>]</xsl:text>
         
         <xsl:text>, "when": [</xsl:text>
         <xsl:for-each select=".//comment()[contains(., '202')][1]">
@@ -190,6 +200,20 @@
         </xsl:for-each>
         <xsl:text>]</xsl:text>
         
+       <!-- <xsl:text>,"authoritative_ids": [</xsl:text>
+        <xsl:for-each select=".//tei:idno[(@type='GND')]">
+            <xsl:text>{</xsl:text>
+            <xsl:text>"type": "</xsl:text>
+            <xsl:value-of select="@type"/>
+            <xsl:text>",</xsl:text>
+            <xsl:text>"url": "</xsl:text>
+            <xsl:value-of select="."/>
+            <xsl:text>"</xsl:text>
+            <xsl:text>}</xsl:text>
+            <xsl:if test="position() != last()">,</xsl:if>
+        </xsl:for-each>
+        <xsl:text>]</xsl:text>-->
+        
         <xsl:text>, "when": [</xsl:text>
         <xsl:for-each select=".//comment()[contains(., '202')][1]">
             <xsl:text>{</xsl:text>
@@ -201,31 +225,4 @@
         <xsl:text>]</xsl:text>
         <xsl:text>}</xsl:text>
     </xsl:template>
-  
-    <!--<xsl:template name="processOrg" match="tei:org">
-        <xsl:text>{</xsl:text>
-        <xsl:text>"type": "organization",</xsl:text>
-        <xsl:text>"name": "</xsl:text>
-        <xsl:call-template name="escape-json">
-            <xsl:with-param name="text" select="normalize-space(tei:orgName[not(@type)])"/>
-        </xsl:call-template>
-        <xsl:text>",</xsl:text>
-        
-        <xsl:text>"alternativeNames": [</xsl:text>
-        <xsl:for-each select="tei:orgName[@type='alt']">
-            <xsl:text>{"name": "</xsl:text>
-            <xsl:call-template name="escape-json">
-                <xsl:with-param name="text" select="normalize-space(.)"/>
-            </xsl:call-template>
-            <xsl:text>", "type": "</xsl:text>
-            <xsl:value-of select="@subtype"/>
-            <xsl:text>", "lang": "</xsl:text>
-            <xsl:value-of select="@xml:lang"/>
-            <xsl:text>"}</xsl:text>
-            <xsl:if test="position() != last()">,</xsl:if>
-        </xsl:for-each>
-        <xsl:text>]</xsl:text>
-        
-        <xsl:text>}</xsl:text>
-    </xsl:template>-->
 </xsl:stylesheet>
