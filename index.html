@@ -78,6 +78,84 @@
             cursor: pointer;
             color: #0066cc;
         }
+        
+       /* Entity popup styles */
+.entity-popup {
+    position: absolute;
+    z-index: 1000;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0;
+    max-width: 400px;
+    box-shadow: 0px 0px 10px rgba(0,0,0,0.3);
+    font-family: Arial, sans-serif;
+}
+
+.entity-popup-header {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.entity-popup-icon {
+    margin-right: 15px;
+}
+
+.entity-popup-name {
+    margin: 0;
+    font-size: 1.3em;
+    font-weight: bold;
+}
+
+.entity-popup-close {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    cursor: pointer;
+    color: #b35900;
+}
+
+.entity-popup-content {
+    padding: 15px;
+}
+
+.entity-popup-section {
+    margin-bottom: 15px;
+}
+
+.entity-popup-section-title {
+    font-weight: bold;
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+
+.entity-popup-list {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.entity-popup-lang {
+    color: #666;
+}
+
+.entity-popup-project {
+    color: #b35900;
+    font-style: italic;
+}
+
+.entity-popup-gnd {
+    margin-top: 15px;
+}
+
+.entity-popup-link {
+    color: #b35900;
+    text-decoration: underline;
+}
+
+
     </style>
 </head>
 <body>
@@ -392,103 +470,187 @@
     // Debug: Log the data to see what's available
     console.log("Clicked row data:", JSON.stringify(data, null, 2));
     
-    var container = document.createElement("div");
-    var contents = "<strong style='font-size:1.2em;'>" + data.name + "</strong><br/>";
-    
-    // Add entity type
-    if (data.type) {
-        contents += "<div><strong>Type:</strong> " + data.type.charAt(0).toUpperCase() + data.type.slice(1) + "</div>";
-    }
-    
-    // Add ID information if available
-    if (Array.isArray(data.id) && data.id.length > 0) {
-        contents += "<div><strong>ID:</strong> " + data.id.map(item => item.id).join(", ") + "</div>";
-    }
-    
-    // Add additional names if available
-    if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
-        contents += "<br/><strong>Alternative Names:</strong><ul style='padding-left: 20px; margin-top: 5px; margin-bottom: 5px;'>";
-        data['additional names'].forEach(function(item) {
-            contents += "<li>" + item.name;
-            if (item.lang) {
-                contents += " <small>(" + item.lang + ")</small>";
-            }
-            contents += "</li>";
-        });
-        contents += "</ul>";
-    }
-    
-    // Find GND links only
-    var gndLinks = [];
-
-// Check in authoritative_ids - handling both possible structures
-if (Array.isArray(data['authoritative_ids'])) {
-    // First structure: array of objects with type/url properties
-    const gndByType = data['authoritative_ids'].filter(id => id.type === 'GND');
-    if (gndByType.length > 0) {
-        gndLinks = gndLinks.concat(gndByType);
-        console.log("Found GND in authoritative_ids by type:", gndByType);
-    }
-    
-    // Second structure: array of objects with direct GND property
-    const gndByProperty = data['authoritative_ids'].filter(id => id.GND);
-    if (gndByProperty.length > 0) {
-        gndByProperty.forEach(item => {
-            gndLinks.push({
-                type: 'GND',
-                url: item.GND
-            });
-        });
-        console.log("Found GND in authoritative_ids by property:", gndByProperty);
-    }
-}
-
-// Add GND links if they exist
-if (gndLinks.length > 0) {
-    contents += "<br/><strong>GND Link:</strong><ul style='padding-left: 20px; margin-top: 5px; margin-bottom: 5px;'>";
-    
-    // Loop through GND links and display each as a hyperlink
-    gndLinks.forEach(function(item) {
-        contents += `<li><a href="${item.url}" target="_blank">${item.url}</a></li>`;
-    });
-    
-    contents += "</ul>";
-} else {
-    // If no GND links found, show a message
-    contents += "<br/><div>No GND link available.</div>";
-    console.log("No GND link found for this entity.");
-}
-
-    // Add the content to the container
-    container.innerHTML = contents;
-
-    // Create the popup and append it to the body
+    // Create popup container with improved styling
     var popup = document.createElement("div");
-    popup.style.position = "absolute";
-    popup.style.zIndex = 1000;
-    popup.style.backgroundColor = "#fff";
-    popup.style.border = "1px solid #ddd";
-    popup.style.padding = "10px";
-    popup.style.maxWidth = "400px";
-    popup.style.boxShadow = "0px 0px 10px rgba(0,0,0,0.2)";
-    popup.innerHTML = container.innerHTML;
-
-    // Position the popup relative to the clicked cell
-    var cellRect = cell.getElement().getBoundingClientRect();
-    popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px"; // Position below the cell
-    popup.style.left = cellRect.left + window.scrollX + "px"; // Position next to the cell
-
-    document.body.appendChild(popup);
-
-    // Close the popup when clicking anywhere outside of it
-    function closePopup(e) {
-        if (!popup.contains(e.target) && e.target !== cell.getElement()) {
-            popup.remove();
-            document.removeEventListener("click", closePopup);
+    popup.className = "entity-popup";
+    
+    // Create popup header with icon and name
+    var header = document.createElement("div");
+    header.className = "entity-popup-header";
+    
+    // Add appropriate icon based on entity type
+    var iconElement = document.createElement("div");
+    iconElement.className = "entity-popup-icon";
+    
+    // Choose icon based on entity type
+    if (data.type && data.type.toLowerCase() === "place") {
+        // Place icon (location marker)
+        iconElement.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 21C16 17 20 13.4183 20 9C20 4.58172 16.4183 1 12 1C7.58172 1 4 4.58172 4 9C4 13.4183 8 17 12 21Z" stroke="black" stroke-width="2"/><circle cx="12" cy="9" r="3" stroke="black" stroke-width="2"/></svg>';
+    } else {
+        // Default person icon
+        iconElement.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="7" r="4" stroke="black" stroke-width="2"/><path d="M4 21V17C4 15.8954 4.89543 15 6 15H18C19.1046 15 20 15.8954 20 17V21" stroke="black" stroke-width="2"/></svg>';
+    }
+    
+    // Add name
+    var nameElement = document.createElement("h2");
+    nameElement.className = "entity-popup-name";
+    nameElement.textContent = data.name;
+    
+    // Add close button
+    var closeButton = document.createElement("div");
+    closeButton.className = "entity-popup-close";
+    closeButton.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18" stroke="#b35900" stroke-width="2" stroke-linecap="round"/><path d="M6 6L18 18" stroke="#b35900" stroke-width="2" stroke-linecap="round"/></svg>';
+    closeButton.onclick = function() {
+        popup.remove();
+        document.removeEventListener("click", closePopupFunction);
+    };
+    
+    // Add elements to header
+    header.appendChild(iconElement);
+    header.appendChild(nameElement);
+    header.appendChild(closeButton);
+    
+    // Create content section
+    var content = document.createElement("div");
+    content.className = "entity-popup-content";
+    
+    // Add birth-death years if available (for persons)
+    if (data.type && data.type.toLowerCase() === "person") {
+        var yearsText = "";
+        if (data.birth && data.birth.when) {
+            yearsText += data.birth.when.substring(0, 4);
+        }
+        yearsText += "–";
+        if (data.death && data.death.when) {
+            yearsText += data.death.when.substring(0, 4);
+        }
+        
+        if (yearsText !== "–") {
+            var yearsElement = document.createElement("p");
+            yearsElement.className = "entity-popup-years";
+            yearsElement.textContent = yearsText;
+            content.appendChild(yearsElement);
         }
     }
-    document.addEventListener("click", closePopup);
-}   },   
+    
+    // Add occupation (for persons) or description (for places) if available
+    if (data.occupation) {
+        var occupationElement = document.createElement("p");
+        occupationElement.className = "entity-popup-occupation";
+        occupationElement.textContent = data.occupation;
+        content.appendChild(occupationElement);
+    }
+    
+    // Add alternative names with project information if available
+    if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
+        var altNamesDiv = document.createElement("div");
+        altNamesDiv.className = "entity-popup-section";
+        
+        var altNameTitle = document.createElement("p");
+        altNameTitle.className = "entity-popup-section-title";
+        altNameTitle.textContent = "Alternative Names:";
+        altNamesDiv.appendChild(altNameTitle);
+        
+        var namesList = document.createElement("ul");
+        namesList.className = "entity-popup-list";
+        
+        data['additional names'].forEach(function(item) {
+            var listItem = document.createElement("li");
+            
+            // Add name
+            var nameSpan = document.createElement("span");
+            nameSpan.textContent = item.name;
+            listItem.appendChild(nameSpan);
+            
+            // Add language if available
+            if (item.lang) {
+                var langSpan = document.createElement("span");
+                langSpan.className = "entity-popup-lang";
+                langSpan.textContent = " (" + item.lang + ")";
+                listItem.appendChild(langSpan);
+            }
+            
+            // Add project/collection if available
+            if (item.collection) {
+                var projectSpan = document.createElement("span");
+                projectSpan.className = "entity-popup-project";
+                projectSpan.textContent = " [" + item.collection + "]";
+                listItem.appendChild(projectSpan);
+            }
+            
+            namesList.appendChild(listItem);
+        });
+        
+        altNamesDiv.appendChild(namesList);
+        content.appendChild(altNamesDiv);
+    }
+    
+    // Find GND links
+    var gndLinks = [];
+    
+    // Check in authoritative_ids - handling both possible structures
+    if (Array.isArray(data['authoritative_ids'])) {
+        // First structure: array of objects with type/url properties
+        const gndByType = data['authoritative_ids'].filter(id => id.type === 'GND');
+        if (gndByType.length > 0) {
+            gndLinks = gndLinks.concat(gndByType);
+        }
+        
+        // Second structure: array of objects with direct GND property
+        const gndByProperty = data['authoritative_ids'].filter(id => id.GND);
+        if (gndByProperty.length > 0) {
+            gndByProperty.forEach(item => {
+                gndLinks.push({
+                    type: 'GND',
+                    url: item.GND
+                });
+            });
+        }
+    }
+    
+    // Add GND link if available
+    if (gndLinks.length > 0) {
+        var gndContainer = document.createElement("div");
+        gndContainer.className = "entity-popup-gnd";
+        
+        var gndLabel = document.createElement("strong");
+        gndLabel.textContent = "GND: ";
+        gndContainer.appendChild(gndLabel);
+        
+        var gndLink = document.createElement("a");
+        gndLink.href = gndLinks[0].url;
+        gndLink.target = "_blank";
+        gndLink.className = "entity-popup-link";
+        gndLink.textContent = gndLinks[0].url;
+        gndContainer.appendChild(gndLink);
+        
+        content.appendChild(gndContainer);
+    }
+    
+    // Add elements to popup
+    popup.appendChild(header);
+    popup.appendChild(content);
+    
+    // Position the popup relative to the clicked cell
+    var cellRect = cell.getElement().getBoundingClientRect();
+    popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px";
+    popup.style.left = cellRect.left + window.scrollX + "px";
+    
+    // Append popup to body
+    document.body.appendChild(popup);
+    
+    // Define the close popup function
+    function closePopupFunction(e) {
+        if (!popup.contains(e.target) && e.target !== cell.getElement()) {
+            popup.remove();
+            document.removeEventListener("click", closePopupFunction);
+        }
+    }
+    
+    // Close the popup when clicking anywhere outside of it
+    document.addEventListener("click", closePopupFunction);
+} 
+                            },
                             { 
                                 title: "Id", 
                                 field: "id", 
@@ -600,29 +762,9 @@ if (gndLinks.length > 0) {
                                         // If no additional names are found, show a message
                                         contents += "<li>No project labels available</li>";
                                     }
-
                                     contents += "</ul>";
                                     
-                                    // Check for authority links
-                                    var authIds = null;
-                                    if (Array.isArray(data.authoritative_ids) && data.authoritative_ids.length > 0) {
-                                        authIds = data.authoritative_ids;
-                                    } 
-                                    else if (Array.isArray(data.authority_ids) && data.authority_ids.length > 0) {
-                                        authIds = data.authority_ids;
-                                    }
                                     
-                                    // Add authority identifiers section if they exist
-                                    if (authIds && authIds.length > 0) {
-                                        contents += "<br/><strong>Authority Links:</strong><ul style='padding:0; margin-top:10px; margin-bottom:0;'>";
-                                        
-                                        // Loop through the array of authority IDs and display each as a hyperlink
-                                        authIds.forEach(function(item) {
-                                            contents += `<li><strong>${item.type}:</strong> <a href="${item.url}" target="_blank">${item.url}</a></li>`;
-                                        });
-                                        
-                                        contents += "</ul>";
-                                    }
 
                                     // Add the content to the container
                                     container.innerHTML = contents;
