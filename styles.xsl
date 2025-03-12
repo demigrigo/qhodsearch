@@ -200,8 +200,8 @@
         </xsl:for-each>
         <xsl:text>]</xsl:text>
         
-       <!-- <xsl:text>,"authoritative_ids": [</xsl:text>
-        <xsl:for-each select=".//tei:idno[(@type='GND')]">
+        <xsl:text>,"authoritative_ids": [</xsl:text>
+        <xsl:for-each select=".//tei:idno[@type='GND' or 'GeoNames']">
             <xsl:text>{</xsl:text>
             <xsl:text>"type": "</xsl:text>
             <xsl:value-of select="@type"/>
@@ -212,7 +212,7 @@
             <xsl:text>}</xsl:text>
             <xsl:if test="position() != last()">,</xsl:if>
         </xsl:for-each>
-        <xsl:text>]</xsl:text>-->
+        <xsl:text>]</xsl:text>
         
         <xsl:text>, "when": [</xsl:text>
         <xsl:for-each select=".//comment()[contains(., '202')][1]">
