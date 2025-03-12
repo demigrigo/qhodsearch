@@ -464,192 +464,202 @@
                                 field: "name", 
                                 width: 150,
                                 cellClick: function(e, cell) {
-    // When the cell is clicked, show a popup with name and authority links
-    var data = cell.getRow().getData();
-    
-    // Debug: Log the data to see what's available
-    console.log("Clicked row data:", JSON.stringify(data, null, 2));
-    
-    // Create popup container with improved styling
-    var popup = document.createElement("div");
-    popup.className = "entity-popup";
-    
-    // Create popup header with icon and name
-    var header = document.createElement("div");
-    header.className = "entity-popup-header";
-    
-    // Add appropriate icon based on entity type
-    var iconElement = document.createElement("div");
-    iconElement.className = "entity-popup-icon";
-    
-    // Choose icon based on entity type
-    if (data.type && data.type.toLowerCase() === "place") {
-        // Place icon (location marker)
-        iconElement.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 21C16 17 20 13.4183 20 9C20 4.58172 16.4183 1 12 1C7.58172 1 4 4.58172 4 9C4 13.4183 8 17 12 21Z" stroke="black" stroke-width="2"/><circle cx="12" cy="9" r="3" stroke="black" stroke-width="2"/></svg>';
-    } else {
-        // Default person icon
-        iconElement.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="7" r="4" stroke="black" stroke-width="2"/><path d="M4 21V17C4 15.8954 4.89543 15 6 15H18C19.1046 15 20 15.8954 20 17V21" stroke="black" stroke-width="2"/></svg>';
-    }
-    
-    // Add name
-    var nameElement = document.createElement("h2");
-    nameElement.className = "entity-popup-name";
-    nameElement.textContent = data.name;
-    
-    // Add close button
-    var closeButton = document.createElement("div");
-    closeButton.className = "entity-popup-close";
-    closeButton.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18" stroke="#b35900" stroke-width="2" stroke-linecap="round"/><path d="M6 6L18 18" stroke="#b35900" stroke-width="2" stroke-linecap="round"/></svg>';
-    closeButton.onclick = function() {
-        popup.remove();
-        document.removeEventListener("click", closePopupFunction);
-    };
-    
-    // Add elements to header
-    header.appendChild(iconElement);
-    header.appendChild(nameElement);
-    header.appendChild(closeButton);
-    
-    // Create content section
-    var content = document.createElement("div");
-    content.className = "entity-popup-content";
-    
-    // Add birth-death years if available (for persons)
-    if (data.type && data.type.toLowerCase() === "person") {
-        var yearsText = "";
-        if (data.birth && data.birth.when) {
-            yearsText += data.birth.when.substring(0, 4);
-        }
-        yearsText += "–";
-        if (data.death && data.death.when) {
-            yearsText += data.death.when.substring(0, 4);
-        }
-        
-        if (yearsText !== "–") {
-            var yearsElement = document.createElement("p");
-            yearsElement.className = "entity-popup-years";
-            yearsElement.textContent = yearsText;
-            content.appendChild(yearsElement);
-        }
-    }
-    
-    // Add occupation (for persons) or description (for places) if available
-    if (data.occupation) {
-        var occupationElement = document.createElement("p");
-        occupationElement.className = "entity-popup-occupation";
-        occupationElement.textContent = data.occupation;
-        content.appendChild(occupationElement);
-    }
-    
-    // Add alternative names with project information if available
-    if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
-        var altNamesDiv = document.createElement("div");
-        altNamesDiv.className = "entity-popup-section";
-        
-        var altNameTitle = document.createElement("p");
-        altNameTitle.className = "entity-popup-section-title";
-        altNameTitle.textContent = "Alternative Names:";
-        altNamesDiv.appendChild(altNameTitle);
-        
-        var namesList = document.createElement("ul");
-        namesList.className = "entity-popup-list";
-        
-        data['additional names'].forEach(function(item) {
-            var listItem = document.createElement("li");
-            
-            // Add name
-            var nameSpan = document.createElement("span");
-            nameSpan.textContent = item.name;
-            listItem.appendChild(nameSpan);
-            
-            // Add language if available
-            if (item.lang) {
-                var langSpan = document.createElement("span");
-                langSpan.className = "entity-popup-lang";
-                langSpan.textContent = " (" + item.lang + ")";
-                listItem.appendChild(langSpan);
-            }
-            
-            // Add project/collection if available
-            if (item.collection) {
-                var projectSpan = document.createElement("span");
-                projectSpan.className = "entity-popup-project";
-                projectSpan.textContent = " [" + item.collection + "]";
-                listItem.appendChild(projectSpan);
-            }
-            
-            namesList.appendChild(listItem);
-        });
-        
-        altNamesDiv.appendChild(namesList);
-        content.appendChild(altNamesDiv);
-    }
-    
-    // Find GND links
-    var gndLinks = [];
-    
-    // Check in authoritative_ids - handling both possible structures
-    if (Array.isArray(data['authoritative_ids'])) {
-        // First structure: array of objects with type/url properties
-        const gndByType = data['authoritative_ids'].filter(id => id.type === 'GND');
-        if (gndByType.length > 0) {
-            gndLinks = gndLinks.concat(gndByType);
-        }
-        
-        // Second structure: array of objects with direct GND property
-        const gndByProperty = data['authoritative_ids'].filter(id => id.GND);
-        if (gndByProperty.length > 0) {
-            gndByProperty.forEach(item => {
-                gndLinks.push({
-                    type: 'GND',
-                    url: item.GND
-                });
-            });
-        }
-    }
-    
-    // Add GND link if available
-    if (gndLinks.length > 0) {
-        var gndContainer = document.createElement("div");
-        gndContainer.className = "entity-popup-gnd";
-        
-        var gndLabel = document.createElement("strong");
-        gndLabel.textContent = "GND: ";
-        gndContainer.appendChild(gndLabel);
-        
-        var gndLink = document.createElement("a");
-        gndLink.href = gndLinks[0].url;
-        gndLink.target = "_blank";
-        gndLink.className = "entity-popup-link";
-        gndLink.textContent = gndLinks[0].url;
-        gndContainer.appendChild(gndLink);
-        
-        content.appendChild(gndContainer);
-    }
-    
-    // Add elements to popup
-    popup.appendChild(header);
-    popup.appendChild(content);
-    
-    // Position the popup relative to the clicked cell
-    var cellRect = cell.getElement().getBoundingClientRect();
-    popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px";
-    popup.style.left = cellRect.left + window.scrollX + "px";
-    
-    // Append popup to body
-    document.body.appendChild(popup);
-    
-    // Define the close popup function
-    function closePopupFunction(e) {
-        if (!popup.contains(e.target) && e.target !== cell.getElement()) {
-            popup.remove();
-            document.removeEventListener("click", closePopupFunction);
-        }
-    }
-    
-    // Close the popup when clicking anywhere outside of it
-    document.addEventListener("click", closePopupFunction);
-} 
+                                    // When the cell is clicked, show a popup with name and authority links
+                                    var data = cell.getRow().getData();
+                                    
+                                    // Debug: Log the data to see what's available
+                                    console.log("Clicked row data:", JSON.stringify(data, null, 2));
+                                    
+                                    // Create popup container with improved styling
+                                    var popup = document.createElement("div");
+                                    popup.className = "entity-popup";
+                                    
+                                    // Create popup header with icon and name
+                                    var header = document.createElement("div");
+                                    header.className = "entity-popup-header";
+                                    
+                                    // Add appropriate icon based on entity type
+                                    var iconElement = document.createElement("div");
+                                    iconElement.className = "entity-popup-icon";
+                                    
+                                    // Choose icon based on entity type
+                                    if (data.type && data.type.toLowerCase() === "place") {
+                                        // Place icon (location marker)
+                                        iconElement.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 21C16 17 20 13.4183 20 9C20 4.58172 16.4183 1 12 1C7.58172 1 4 4.58172 4 9C4 13.4183 8 17 12 21Z" stroke="black" stroke-width="2"/><circle cx="12" cy="9" r="3" stroke="black" stroke-width="2"/></svg>';
+                                    } else {
+                                        // Default person icon
+                                        iconElement.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="7" r="4" stroke="black" stroke-width="2"/><path d="M4 21V17C4 15.8954 4.89543 15 6 15H18C19.1046 15 20 15.8954 20 17V21" stroke="black" stroke-width="2"/></svg>';
+                                    }
+                                    
+                                    // Add name
+                                    var nameElement = document.createElement("h2");
+                                    nameElement.className = "entity-popup-name";
+                                    nameElement.textContent = data.name;
+                                    
+                                    // Add close button
+                                    var closeButton = document.createElement("div");
+                                    closeButton.className = "entity-popup-close";
+                                    closeButton.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18" stroke="#b35900" stroke-width="2" stroke-linecap="round"/><path d="M6 6L18 18" stroke="#b35900" stroke-width="2" stroke-linecap="round"/></svg>';
+                                    closeButton.onclick = function() {
+                                        popup.remove();
+                                        document.removeEventListener("click", closePopupFunction);
+                                    };
+                                    
+                                    // Add elements to header
+                                    header.appendChild(iconElement);
+                                    header.appendChild(nameElement);
+                                    header.appendChild(closeButton);
+                                    
+                                    // Create content section
+                                    var content = document.createElement("div");
+                                    content.className = "entity-popup-content";
+                                    
+                                    // Add alternative names with project information if available
+                                    if (Array.isArray(data['additional names']) && data['additional names'].length > 0) {
+                                        var altNamesDiv = document.createElement("div");
+                                        altNamesDiv.className = "entity-popup-section";
+                                        
+                                        var altNameTitle = document.createElement("p");
+                                        altNameTitle.className = "entity-popup-section-title";
+                                        altNameTitle.textContent = "Alternative Names:";
+                                        altNamesDiv.appendChild(altNameTitle);
+                                        
+                                        var namesList = document.createElement("ul");
+                                        namesList.className = "entity-popup-list";
+                                        
+                                        data['additional names'].forEach(function(item) {
+                                            var listItem = document.createElement("li");
+                                            
+                                            // Add name
+                                            var nameSpan = document.createElement("span");
+                                            nameSpan.textContent = item.name;
+                                            listItem.appendChild(nameSpan);
+                                            
+                                            // Add language if available
+                                            if (item.lang) {
+                                                var langSpan = document.createElement("span");
+                                                langSpan.className = "entity-popup-lang";
+                                                langSpan.textContent = " (" + item.lang + ")";
+                                                listItem.appendChild(langSpan);
+                                            }
+                                            
+                                            // Add project/collection if available
+                                            if (item.collection) {
+                                                var projectSpan = document.createElement("span");
+                                                projectSpan.className = "entity-popup-project";
+                                                projectSpan.textContent = " [" + item.collection + "]";
+                                                listItem.appendChild(projectSpan);
+                                            }
+                                            
+                                            namesList.appendChild(listItem);
+                                        });
+                                        
+                                        altNamesDiv.appendChild(namesList);
+                                        content.appendChild(altNamesDiv);
+                                    }
+                                    
+                                    // Find both GND and GeoNames links
+                                    var gndLinks = [];
+                                    var geoNamesLinks = [];
+
+                                    // Check in authoritative_ids - handling both possible structures
+                                    if (Array.isArray(data['authoritative_ids'])) {
+                                        // First structure: array of objects with type/url properties
+                                        const gndByType = data['authoritative_ids'].filter(id => id.type === 'GND');
+                                        if (gndByType.length > 0) {
+                                            gndLinks = gndLinks.concat(gndByType);
+                                        }
+                                        
+                                        // Get GeoNames by type
+                                        const geoNamesByType = data['authoritative_ids'].filter(id => id.type === 'GeoNames');
+                                        if (geoNamesByType.length > 0) {
+                                            geoNamesLinks = geoNamesLinks.concat(geoNamesByType);
+                                        }
+                                        
+                                        // Second structure: array of objects with direct GND or GeoNames property
+                                        const gndByProperty = data['authoritative_ids'].filter(id => id.GND);
+                                        if (gndByProperty.length > 0) {
+                                            gndByProperty.forEach(item => {
+                                                gndLinks.push({
+                                                    type: 'GND',
+                                                    url: item.GND
+                                                });
+                                            });
+                                        }
+                                        
+                                        // Check for GeoNames property
+                                        const geoNamesByProperty = data['authoritative_ids'].filter(id => id.GeoNames);
+                                        if (geoNamesByProperty.length > 0) {
+                                            geoNamesByProperty.forEach(item => {
+                                                geoNamesLinks.push({
+                                                    type: 'GeoNames',
+                                                    url: item.GeoNames
+                                                });
+                                            });
+                                        }
+                                    }
+
+                                    // Add GND link if available
+                                    if (gndLinks.length > 0) {
+                                        var gndContainer = document.createElement("div");
+                                        gndContainer.className = "entity-popup-gnd";
+                                        
+                                        var gndLabel = document.createElement("strong");
+                                        gndLabel.textContent = "GND: ";
+                                        gndContainer.appendChild(gndLabel);
+                                        
+                                        var gndLink = document.createElement("a");
+                                        gndLink.href = gndLinks[0].url;
+                                        gndLink.target = "_blank";
+                                        gndLink.className = "entity-popup-link";
+                                        gndLink.textContent = gndLinks[0].url;
+                                        gndContainer.appendChild(gndLink);
+                                        
+                                        content.appendChild(gndContainer);
+                                    }
+
+                                    // Add GeoNames link if available (similar styling to GND)
+                                    if (geoNamesLinks.length > 0) {
+                                        var geoNamesContainer = document.createElement("div");
+                                        geoNamesContainer.className = "entity-popup-gnd";
+                                        
+                                        var geoNamesLabel = document.createElement("strong");
+                                        geoNamesLabel.textContent = "GeoNames: ";
+                                        geoNamesContainer.appendChild(geoNamesLabel);
+                                        
+                                        var geoNamesLink = document.createElement("a");
+                                        geoNamesLink.href = geoNamesLinks[0].url;
+                                        geoNamesLink.target = "_blank";
+                                        geoNamesLink.className = "entity-popup-link";
+                                        geoNamesLink.textContent = geoNamesLinks[0].url;
+                                        geoNamesContainer.appendChild(geoNamesLink);
+                                        
+                                        content.appendChild(geoNamesContainer);
+                                    }
+
+                                    // Add elements to popup
+                                    popup.appendChild(header);
+                                    popup.appendChild(content);
+
+                                    // Position the popup relative to the clicked cell
+                                    var cellRect = cell.getElement().getBoundingClientRect();
+                                    popup.style.top = cellRect.top + window.scrollY + cellRect.height + 10 + "px";
+                                    popup.style.left = cellRect.left + window.scrollX + "px";
+
+                                    // Append popup to body
+                                    document.body.appendChild(popup);
+
+                                    // Define the close popup function
+                                    function closePopupFunction(e) {
+                                        if (!popup.contains(e.target) && e.target !== cell.getElement()) {
+                                            popup.remove();
+                                            document.removeEventListener("click", closePopupFunction);
+                                        }
+                                    }
+
+                                    // Close the popup when clicking anywhere outside of it
+                                    document.addEventListener("click", closePopupFunction);
+                                }
                             },
                             { 
                                 title: "Id", 
